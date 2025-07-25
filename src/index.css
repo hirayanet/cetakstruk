@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Print Styles */
+@media print {
+  body {
+    margin: 0;
+    padding: 0;
+    font-size: 12px;
+  }
+  
+  .receipt-content {
+    width: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 8px !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+  
+  /* Hide everything except receipt */
+  body > :not(.receipt-content) {
+    display: none !important;
+  }
+  
+  /* Show only the receipt content */
+  .receipt-content {
+    display: block !important;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Animation for loading */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Mobile optimizations */
+@media (max-width: 640px) {
+  .receipt-content {
+    font-size: 11px;
+  }
+}
