@@ -3,28 +3,49 @@ import { Upload, FileImage, Printer, Download, Calculator, CheckCircle } from 'l
 import ImageUploader from './components/ImageUploader';
 import TransferForm from './components/TransferForm';
 import ReceiptPreview from './components/ReceiptPreview';
-import { TransferData } from './types/TransferData';
+import { TransferData, BankType } from './types/TransferData';
 import { extractDataFromImage } from './utils/ocrSimulator';
 
 function App() {
-  const [step, setStep] = useState<'upload' | 'form' | 'preview'>('upload');
+  const [step, setStep] = useState<'bank-select' | 'upload' | 'form' | 'preview'>('bank-select');
+  const [selectedBank, setSelectedBank] = useState<BankType>('BCA');
   const [transferData, setTransferData] = useState<TransferData>({
     date: '',
     senderName: '',
     amount: 0,
+    receiverName: '',
+    receiverBank: '',
     referenceNumber: '',
-    adminFee: 2500,
-    paperSize: '58mm'
+    adminFee: 0, // Changed from 2500 to 0
+    paperSize: '58mm',
+    bankType: 'BCA'
   });
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [isExtracting, setIsExtracting] = useState(false);
+
+  const handleBankSelect = (bank: BankType) => {
+    setSelectedBank(bank);
+    setTransferData(prev => ({ ...prev, bankType: bank }));
+    setStep('upload');
+  };
 
   const handleImageUpload = async (imageUrl: string) => {
     setUploadedImage(imageUrl);
+    setIsExtracting(true);
     
-    // Extract data from the uploaded image
-    const extractedData = await extractDataFromImage(imageUrl);
-    setTransferData(extractedData);
-    setStep('form');
+    console.log('🎯 Starting data extraction...');
+    
+    try {
+      // Extract data with pre-selected bank
+      const extractedData = await extractDataFromImage(imageUrl, selectedBank);
+      console.log('✅ Data extracted:', extractedData);
+      setTransferData(extractedData);
+      setStep('form');
+    } catch (error) {
+      console.error('❌ Extraction failed:', error);
+    } finally {
+      setIsExtracting(false);
+    }
   };
 
   const handleFormSubmit = (data: TransferData) => {
@@ -35,18 +56,23 @@ function App() {
   const handleBack = () => {
     if (step === 'preview') setStep('form');
     if (step === 'form') setStep('upload');
+    if (step === 'upload') setStep('bank-select');
   };
 
   const handleNewReceipt = () => {
-    setStep('upload');
+    setStep('bank-select');
+    setSelectedBank('BCA');
     setUploadedImage(null);
     setTransferData({
       date: '',
       senderName: '',
       amount: 0,
+      receiverName: '',
+      receiverBank: '',
       referenceNumber: '',
-      adminFee: 2500,
-      paperSize: '58mm'
+      adminFee: 0, // Changed from 2500 to 0
+      paperSize: '58mm',
+      bankType: 'BCA'
     });
   };
 
@@ -76,35 +102,87 @@ function App() {
 
       {/* Main Content */}
       <main className="max-w-4xl mx-auto px-4 py-8">
-        {step === 'upload' && (
+        {step === 'bank-select' && (
           <div className="space-y-6">
             <div className="text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Unggah Bukti Transfer</h2>
-              <p className="text-gray-600">Unggah foto struk transfer bank untuk membaca data secara otomatis</p>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Pilih Bank</h2>
+              <p className="text-gray-600">Pilih bank dari resi transfer yang akan diupload</p>
             </div>
-            <ImageUploader onImageUpload={handleImageUpload} />
+            
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-w-2xl mx-auto">
+              {[
+                { type: 'BCA', name: 'Bank BCA', color: 'bg-blue-800', icon: '🏦' },
+                { type: 'BRI', name: 'Bank BRI', color: 'bg-blue-600', icon: '🏛️' },
+                { type: 'MANDIRI', name: 'Bank Mandiri', color: 'bg-yellow-500', icon: '🏪' },
+                { type: 'BNI', name: 'Bank BNI', color: 'bg-orange-500', icon: '🏢' },
+                { type: 'SEABANK', name: 'SeaBank', color: 'bg-green-600', icon: '🌊' },
+                { type: 'DANA', name: 'DANA', color: 'bg-blue-500', icon: '💳' }
+              ].map((bank) => (
+                <button
+                  key={bank.type}
+                  onClick={() => handleBankSelect(bank.type as BankType)}
+                  className={`p-6 rounded-xl text-white ${bank.color} hover:opacity-90 transition-all transform hover:scale-105 shadow-lg`}
+                >
+                  <div className="text-3xl mb-2">{bank.icon}</div>
+                  <div className="font-semibold">{bank.name}</div>
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
-        {step === 'form' && (
+        {step === 'upload' && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900">Periksa Data Transfer</h2>
-                <p className="text-gray-600">Cek dan ubah data yang sudah dibaca dari foto</p>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Upload Resi {selectedBank}</h2>
+                <p className="text-gray-600">Upload foto struk transfer dari {selectedBank}</p>
               </div>
               <button
                 onClick={handleBack}
                 className="px-4 py-2 text-blue-600 hover:text-blue-700 font-medium"
               >
-                ← Kembali
+                ← Ganti Bank
               </button>
             </div>
-            <TransferForm
-              initialData={transferData}
-              uploadedImage={uploadedImage}
-              onSubmit={handleFormSubmit}
-            />
+            <ImageUploader onImageUpload={handleImageUpload} selectedBank={selectedBank} />
+          </div>
+        )}
+
+        {step === 'form' && (
+          <div className="space-y-6">
+            {isExtracting ? (
+              <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <h3 className="text-lg font-semibold mb-2">Mengekstrak Data dengan OCR...</h3>
+                <p className="text-gray-600 text-sm">Sedang membaca teks dari resi {selectedBank}</p>
+                <div className="mt-4 text-xs text-gray-500 space-y-1">
+                  <p>🔍 Loading Tesseract.js...</p>
+                  <p>📖 Membaca teks dari gambar...</p>
+                  <p>🏦 Parsing format {selectedBank}...</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Periksa Data Transfer</h2>
+                    <p className="text-gray-600">Cek dan ubah data yang sudah dibaca dari foto</p>
+                  </div>
+                  <button
+                    onClick={handleBack}
+                    className="px-4 py-2 text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    ← Kembali
+                  </button>
+                </div>
+                <TransferForm
+                  initialData={transferData}
+                  uploadedImage={uploadedImage}
+                  onSubmit={handleFormSubmit}
+                />
+              </>
+            )}
           </div>
         )}
 

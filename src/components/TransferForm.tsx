@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calculator, CreditCard, Calendar, User, Hash } from 'lucide-react';
 import { TransferData } from '../types/TransferData';
 
@@ -9,17 +9,19 @@ interface TransferFormProps {
 }
 
 export default function TransferForm({ initialData, uploadedImage, onSubmit }: TransferFormProps) {
-  const [formData, setFormData] = useState<TransferData>(initialData);
+  const [formData, setFormData] = useState<TransferData>({
+    ...initialData,
+    receiverAccount: initialData.receiverAccount || ''
+  });
+  const [detectionInfo, setDetectionInfo] = useState<string>('');
 
   const adminFeeOptions = [
-    { value: 1000, label: 'Rp 1.000' },
-    { value: 1500, label: 'Rp 1.500' },
-    { value: 2000, label: 'Rp 2.000' },
-    { value: 2500, label: 'Rp 2.500' },
+    { value: 0, label: 'Rp 0' },
     { value: 3000, label: 'Rp 3.000' },
-    { value: 3500, label: 'Rp 3.500' },
-    { value: 4000, label: 'Rp 4.000' },
     { value: 5000, label: 'Rp 5.000' },
+    { value: 10000, label: 'Rp 10.000' },
+    { value: 15000, label: 'Rp 15.000' },
+    { value: 20000, label: 'Rp 20.000' },
   ];
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -32,6 +34,15 @@ export default function TransferForm({ initialData, uploadedImage, onSubmit }: T
   };
 
   const totalAmount = formData.amount + formData.adminFee;
+
+  useEffect(() => {
+    if (initialData.receiverAccount) {
+      setFormData(prev => ({
+        ...prev,
+        receiverAccount: initialData.receiverAccount
+      }));
+    }
+  }, [initialData.receiverAccount]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -88,8 +99,64 @@ export default function TransferForm({ initialData, uploadedImage, onSubmit }: T
 
           <div>
             <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
+              <User className="w-4 h-4 mr-2" />
+              Nama Penerima
+            </label>
+            <input
+              type="text"
+              value={formData.receiverName}
+              onChange={(e) => setFormData({ ...formData, receiverName: e.target.value.toUpperCase() })}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="NAMA PENERIMA"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
+              <CreditCard className="w-4 h-4 mr-2" />
+              Bank Tujuan
+            </label>
+            <select
+              value={formData.receiverBank}
+              onChange={(e) => setFormData({ ...formData, receiverBank: e.target.value })}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+            >
+              <option value="">Pilih Bank Tujuan</option>
+              <option value="BCA">Bank BCA</option>
+              <option value="BRI">Bank BRI</option>
+              <option value="MANDIRI">Bank Mandiri</option>
+              <option value="BNI">Bank BNI</option>
+              <option value="SEABANK">SeaBank</option>
+              <option value="DANA">DANA</option>
+              <option value="OVO">OVO</option>
+              <option value="GOPAY">GoPay</option>
+              <option value="SHOPEEPAY">ShopeePay</option>
+            </select>
+          </div>
+
+          {(formData.receiverAccount || ['BCA', 'BRI', 'MANDIRI', 'BNI', 'SEABANK'].includes(formData.bankType)) && (
+            <div>
+              <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
+                <Hash className="w-4 h-4 mr-2" />
+                Nomor Rekening Tujuan
+              </label>
+              <input
+                type="text"
+                value={formData.receiverAccount || ''}
+                onChange={(e) => setFormData({ ...formData, receiverAccount: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="1234567890"
+                required
+              />
+            </div>
+          )}
+
+          <div>
+            <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
               <Hash className="w-4 h-4 mr-2" />
-              Nomor Resi
+              Nomor Ref
             </label>
             <input
               type="text"
@@ -100,6 +167,8 @@ export default function TransferForm({ initialData, uploadedImage, onSubmit }: T
               required
             />
           </div>
+
+    
 
           <div>
             <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
@@ -178,18 +247,26 @@ export default function TransferForm({ initialData, uploadedImage, onSubmit }: T
       {/* Image Preview */}
       {uploadedImage && (
         <div className="bg-white rounded-2xl shadow-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Foto yang Diunggah</h3>
-          <div className="mb-4 p-3 bg-blue-50 rounded-lg">
-            <p className="text-sm text-blue-800">
-              <strong>Data Terbaca:</strong> Sistem sudah membaca foto dan mengambil informasi transfer. 
-              Silakan cek dan ubah data di sebelah kiri jika perlu.
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">📄 Resi {formData.bankType}</h3>
+          
+          <div className="mb-4 p-4 rounded-lg bg-green-50 border border-green-200">
+            <div className="flex items-center space-x-2 mb-2">
+              <span className="text-2xl">✅</span>
+              <span className="font-semibold">Bank: {formData.bankType}</span>
+            </div>
+            
+            <p className="text-sm text-gray-600">
+              Data berhasil diekstrak dari resi {formData.bankType}
             </p>
           </div>
-          <img
-            src={uploadedImage}
-            alt="Foto struk yang diunggah"
-            className="w-full h-auto rounded-lg border border-gray-200"
-          />
+          
+          <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
+            <img
+              src={uploadedImage}
+              alt="Uploaded receipt"
+              className="w-full h-full object-contain"
+            />
+          </div>
         </div>
       )}
     </div>

@@ -82,6 +82,14 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
                 <span className="font-mono text-right">{transferData.senderName}</span>
               </div>
               <div className="flex justify-between">
+                <span>Penerima:</span>
+                <span className="font-mono text-right">{transferData.receiverName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Bank Tujuan:</span>
+                <span className="font-mono">{transferData.receiverBank}</span>
+              </div>
+              <div className="flex justify-between">
                 <span>No. Ref:</span>
                 <span className="font-mono">{transferData.referenceNumber}</span>
               </div>

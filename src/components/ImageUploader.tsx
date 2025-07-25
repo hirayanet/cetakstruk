@@ -3,9 +3,10 @@ import { Upload, FileImage, Camera } from 'lucide-react';
 
 interface ImageUploaderProps {
   onImageUpload: (imageUrl: string) => void;
+  selectedBank?: BankType;
 }
 
-export default function ImageUploader({ onImageUpload }: ImageUploaderProps) {
+export default function ImageUploader({ onImageUpload, selectedBank }: ImageUploaderProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -42,14 +43,14 @@ export default function ImageUploader({ onImageUpload }: ImageUploaderProps) {
     setIsProcessing(true);
     
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const imageUrl = e.target?.result as string;
       
-      // Simulate processing delay
-      setTimeout(() => {
-        setIsProcessing(false);
-        onImageUpload(imageUrl);
-      }, 2000);
+      console.log('📤 Image processed, calling onImageUpload...');
+      
+      // Langsung panggil onImageUpload, biar OCR jalan di background
+      setIsProcessing(false);
+      onImageUpload(imageUrl);
     };
     reader.readAsDataURL(file);
   };
@@ -70,6 +71,18 @@ export default function ImageUploader({ onImageUpload }: ImageUploaderProps) {
 
   return (
     <div className="bg-white rounded-2xl shadow-lg p-8">
+      {selectedBank && (
+        <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+          <div className="flex items-center space-x-2">
+            <span className="text-2xl">🏦</span>
+            <div>
+              <p className="font-semibold text-blue-900">Bank Terpilih: {selectedBank}</p>
+              <p className="text-sm text-blue-600">Pastikan resi yang diupload dari bank ini</p>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <div
         className={`border-2 border-dashed rounded-xl p-8 text-center transition-all duration-200 ${
           isDragging 
