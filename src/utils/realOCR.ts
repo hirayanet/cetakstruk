@@ -334,6 +334,12 @@ function parseSeabankReceipt(text: string, bankType: BankType): TransferData {
       console.log('🔧 DANA Name Cleanup: Removed "WN DNID" prefix');
     }
     
+    // Hapus prefix OCR yang salah
+    if (cleaned.startsWith('JM ')) {
+      cleaned = cleaned.replace('JM ', '');
+      console.log('🔧 OCR Cleanup: Removed "JM" prefix');
+    }
+    
     const corrections = {
       'OIAN': 'DIAH',
       'GANI MUHAMMAD RAMLADLAN': 'GANI MUHAMMAD RAMADLAN'
@@ -620,6 +626,7 @@ export async function extractDataWithRealOCR(imageUrl: string, bankType: BankTyp
     return getDefaultData(bankType);
   }
 }
+
 
 
 
