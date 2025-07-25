@@ -15,24 +15,76 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
   const currentDateTime = new Date().toLocaleString('id-ID');
 
   const handlePrint = () => {
-    window.print();
+    try {
+      // Add print class to body
+      document.body.classList.add('printing');
+      
+      setTimeout(() => {
+        window.print();
+        
+        // Remove print class after printing
+        setTimeout(() => {
+          document.body.classList.remove('printing');
+        }, 1000);
+      }, 100);
+    } catch (error) {
+      console.error('❌ Print Error:', error);
+      alert('Gagal mencetak. Pastikan printer sudah terhubung.');
+      document.body.classList.remove('printing');
+    }
   };
 
-  const handleDownloadPDF = () => {
-    // Simulate PDF download
-    const element = document.createElement('a');
-    element.href = '#';
-    element.download = `bukti-transfer-${transferData.referenceNumber}.pdf`;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
+  const handleDownloadPDF = async () => {
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const jsPDF = (await import('jspdf')).default;
+      
+      const receiptElement = document.querySelector('.receipt-content') as HTMLElement;
+      if (!receiptElement) {
+        throw new Error('Receipt content not found');
+      }
+
+      // Capture dengan setting yang lebih optimal
+      const canvas = await html2canvas(receiptElement, {
+        scale: 3, // Tingkatkan kualitas
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        width: receiptElement.offsetWidth,
+        height: receiptElement.offsetHeight,
+        logging: false // Disable logging
+      });
+
+      const imgData = canvas.toDataURL('image/png', 1.0);
+      
+      // PDF size yang lebih akurat untuk thermal printer
+      const pdfWidth = transferData.paperSize === '58mm' ? 58 : 80;
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: [pdfWidth, Math.max(pdfHeight, 100)] // Minimal height 100mm
+      });
+
+      // Add image dengan margin kecil
+      pdf.addImage(imgData, 'PNG', 1, 1, pdfWidth - 2, pdfHeight - 2);
+      
+      // Filename dengan timestamp
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+      pdf.save(`struk-${transferData.bankType}-${timestamp}.pdf`);
+      
+      console.log('✅ PDF saved successfully');
+      alert('✅ PDF berhasil disimpan!');
+    } catch (error) {
+      console.error('❌ PDF Error:', error);
+      alert('❌ Gagal menyimpan PDF. Coba lagi atau gunakan print browser.');
+    }
   };
 
   const receiptWidth = transferData.paperSize === '58mm' ? 'w-48' : 'w-64';
 
   return (
     <div className="space-y-6">
-      {/* Action Buttons */}
       <div className="flex flex-wrap gap-4 justify-center">
         <button
           onClick={handlePrint}
@@ -50,24 +102,22 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
         </button>
       </div>
 
-      {/* Receipt Preview */}
       <div className="flex justify-center">
         <div className="bg-white shadow-2xl rounded-lg overflow-hidden print:shadow-none print:rounded-none">
           <div className={`${receiptWidth} bg-white p-4 print:p-2 receipt-content`}>
-            {/* Header */}
             <div className="text-center border-b border-gray-300 pb-3 mb-3">
               <h1 className="text-lg font-bold">JASA HRY</h1>
               <p className="text-xs text-gray-600">Kirim Uang & Pembayaran</p>
               <p className="text-xs text-gray-600">Cepat • Aman • Terpercaya</p>
             </div>
 
-            {/* Success Icon */}
             <div className="text-center mb-3">
-              <CheckCircle className="w-6 h-6 text-green-500 mx-auto mb-1" />
+              <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-1">
+                <span className="text-white text-sm font-bold">✓</span>
+              </div>
               <p className="text-sm font-semibold text-green-600">KIRIM UANG BERHASIL</p>
             </div>
 
-            {/* Transfer Details */}
             <div className="space-y-2 text-xs">
               <div className="flex justify-between">
                 <span>Tanggal:</span>
@@ -75,7 +125,7 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
               </div>
               <div className="flex justify-between">
                 <span>Waktu:</span>
-                <span className="font-mono">{currentDateTime.split(' ')[1]}</span>
+                <span className="font-mono">{transferData.time || currentDateTime.split(' ')[1]}</span>
               </div>
               <div className="flex justify-between">
                 <span>Pengirim:</span>
@@ -89,6 +139,12 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
                 <span>Bank Tujuan:</span>
                 <span className="font-mono">{transferData.receiverBank}</span>
               </div>
+              {transferData.receiverAccount && (
+                <div className="flex justify-between">
+                  <span>No. Rekening:</span>
+                  <span className="font-mono">{transferData.receiverAccount}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span>No. Ref:</span>
                 <span className="font-mono">{transferData.referenceNumber}</span>
@@ -97,7 +153,6 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
 
             <hr className="my-3 border-dashed" />
 
-            {/* Amount Details */}
             <div className="space-y-1 text-xs">
               <div className="flex justify-between">
                 <span>Jumlah:</span>
@@ -116,7 +171,6 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
 
             <hr className="my-3 border-dashed" />
 
-            {/* Footer */}
             <div className="text-center text-xs text-gray-600 space-y-1">
               <p>Terima kasih telah menggunakan</p>
               <p className="font-semibold">JASA HRY</p>
@@ -131,7 +185,6 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
         </div>
       </div>
 
-      {/* Print Instructions */}
       <div className="bg-blue-50 rounded-lg p-4">
         <h4 className="font-semibold text-blue-900 mb-2">Cara Cetak:</h4>
         <ul className="text-sm text-blue-800 space-y-1">

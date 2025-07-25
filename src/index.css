@@ -4,29 +4,39 @@
 
 /* Print Styles */
 @media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+  
   body {
-    margin: 0;
-    padding: 0;
-    font-size: 12px;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 12px !important;
+  }
+  
+  /* Hide everything except receipt */
+  body * {
+    visibility: hidden !important;
+  }
+  
+  /* Show only receipt content and its children */
+  .receipt-content,
+  .receipt-content * {
+    visibility: visible !important;
   }
   
   .receipt-content {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
     width: auto !important;
     max-width: none !important;
     margin: 0 !important;
     padding: 8px !important;
     box-shadow: none !important;
     border-radius: 0 !important;
-  }
-  
-  /* Hide everything except receipt */
-  body > :not(.receipt-content) {
-    display: none !important;
-  }
-  
-  /* Show only the receipt content */
-  .receipt-content {
-    display: block !important;
+    background: white !important;
   }
 }
 
