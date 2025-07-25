@@ -16,21 +16,24 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
 
   const handlePrint = () => {
     try {
-      // Add print class to body
+      // Add print class berdasarkan paper size
       document.body.classList.add('printing');
+      if (transferData.paperSize === '58mm') {
+        document.body.classList.add('printing-58mm');
+      }
       
       setTimeout(() => {
         window.print();
         
         // Remove print class after printing
         setTimeout(() => {
-          document.body.classList.remove('printing');
+          document.body.classList.remove('printing', 'printing-58mm');
         }, 1000);
       }, 100);
     } catch (error) {
       console.error('❌ Print Error:', error);
       alert('Gagal mencetak. Pastikan printer sudah terhubung.');
-      document.body.classList.remove('printing');
+      document.body.classList.remove('printing', 'printing-58mm');
     }
   };
 

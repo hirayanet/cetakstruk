@@ -12,7 +12,7 @@
   body {
     margin: 0 !important;
     padding: 0 !important;
-    font-size: 12px !important;
+    font-size: 14px !important; /* Perbesar font untuk 80mm */
   }
   
   /* Hide everything except receipt */
@@ -30,13 +30,30 @@
     position: absolute !important;
     left: 0 !important;
     top: 0 !important;
-    width: auto !important;
-    max-width: none !important;
+    width: 80mm !important; /* Set width sesuai kertas */
+    max-width: 80mm !important;
     margin: 0 !important;
-    padding: 8px !important;
+    padding: 4mm !important; /* Padding dalam mm */
     box-shadow: none !important;
     border-radius: 0 !important;
     background: white !important;
+    font-size: 12px !important; /* Font size untuk thermal */
+  }
+  
+  /* Responsive untuk 58mm */
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+  
+  /* Jika paperSize 58mm */
+  body.printing-58mm .receipt-content {
+    width: 58mm !important;
+    max-width: 58mm !important;
+  }
+  
+  body.printing-58mm {
+    font-size: 11px !important;
   }
 }
 
