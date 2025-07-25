@@ -95,7 +95,7 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
 
       // Capture receipt sebagai image
       const canvas = await html2canvas(receiptElement, {
-        scale: 2, // Kualitas bagus tapi tidak terlalu besar
+        scale: 2,
         useCORS: true,
         backgroundColor: '#ffffff',
         width: receiptElement.offsetWidth,
@@ -119,38 +119,67 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
           `📅 Tanggal: ${transferData.date}\n\n` +
           `Terima kasih telah menggunakan JASA HRY! 🙏`;
 
-        // Cek apakah browser support Web Share API
+        // Cek Web Share API dengan files
         if (navigator.share && navigator.canShare) {
           try {
             const file = new File([blob], `struk-${transferData.bankType}-${Date.now()}.png`, {
               type: 'image/png'
             });
 
+            // Test apakah bisa share files
             if (navigator.canShare({ files: [file] })) {
               await navigator.share({
                 title: 'Bukti Transfer - JASA HRY',
                 text: message,
                 files: [file]
               });
-              console.log('✅ Image shared successfully');
+              console.log('✅ Text + Image shared successfully in one go!');
+              alert('✅ Struk berhasil dishare ke WhatsApp!');
               return;
             }
           } catch (shareError) {
-            console.log('📱 Web Share failed, fallback to WhatsApp URL');
+            console.log('📱 Web Share with files failed:', shareError);
           }
         }
 
-        // Fallback: Buka WhatsApp dengan pesan text
-        const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message + '\n\n📸 Gambar struk akan dikirim terpisah')}`;
-        window.open(whatsappUrl, '_blank');
-        
-        // Download image untuk manual share
-        const link = document.createElement('a');
-        link.download = `struk-${transferData.bankType}-${Date.now()}.png`;
-        link.href = canvas.toDataURL();
-        link.click();
-        
-        alert('📱 WhatsApp terbuka! Gambar struk sudah didownload, silakan upload manual ke chat.');
+        // Fallback: WhatsApp Web dengan base64 image (experimental)
+        try {
+          const base64Image = canvas.toDataURL('image/png');
+          const whatsappWebUrl = `https://web.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+          
+          // Buka WhatsApp Web
+          const whatsappWindow = window.open(whatsappWebUrl, '_blank');
+          
+          // Copy image ke clipboard untuk paste manual
+          if (navigator.clipboard && navigator.clipboard.write) {
+            const clipboardItem = new ClipboardItem({
+              'image/png': blob
+            });
+            await navigator.clipboard.write([clipboardItem]);
+            alert('📱 WhatsApp terbuka! Gambar sudah di-copy ke clipboard, tinggal paste (Ctrl+V) di chat.');
+          } else {
+            // Download sebagai backup
+            const link = document.createElement('a');
+            link.download = `struk-${transferData.bankType}-${Date.now()}.png`;
+            link.href = base64Image;
+            link.click();
+            alert('📱 WhatsApp terbuka! Gambar sudah didownload, silakan upload ke chat.');
+          }
+          
+        } catch (clipboardError) {
+          console.log('📋 Clipboard failed, using download fallback');
+          
+          // Final fallback: Download + WhatsApp URL
+          const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+          window.open(whatsappUrl, '_blank');
+          
+          const link = document.createElement('a');
+          link.download = `struk-${transferData.bankType}-${Date.now()}.png`;
+          link.href = canvas.toDataURL();
+          link.click();
+          
+          alert('📱 WhatsApp terbuka! Gambar sudah didownload, silakan upload manual ke chat.');
+        }
         
       }, 'image/png', 0.9);
       
