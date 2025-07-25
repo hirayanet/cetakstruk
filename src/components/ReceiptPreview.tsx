@@ -1,5 +1,5 @@
 import React from 'react';
-import { Printer, Download, CheckCircle } from 'lucide-react';
+import { Printer, Download, CheckCircle, Share2 } from 'lucide-react';
 import { TransferData } from '../types/TransferData';
 
 interface ReceiptPreviewProps {
@@ -84,6 +84,82 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
     }
   };
 
+  const handleShareWhatsApp = async () => {
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      
+      const receiptElement = document.querySelector('.receipt-content') as HTMLElement;
+      if (!receiptElement) {
+        throw new Error('Receipt content not found');
+      }
+
+      // Capture receipt sebagai image
+      const canvas = await html2canvas(receiptElement, {
+        scale: 2, // Kualitas bagus tapi tidak terlalu besar
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        width: receiptElement.offsetWidth,
+        height: receiptElement.offsetHeight,
+        logging: false
+      });
+
+      // Convert ke blob
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          throw new Error('Failed to create image blob');
+        }
+
+        // Pesan WhatsApp
+        const message = `📄 *BUKTI TRANSFER - JASA HRY*\n\n` +
+          `✅ Transfer berhasil!\n` +
+          `💰 Jumlah: Rp ${formatNumber(transferData.amount)}\n` +
+          `👤 Dari: ${transferData.senderName}\n` +
+          `👤 Ke: ${transferData.receiverName}\n` +
+          `🏦 Bank: ${transferData.receiverBank}\n` +
+          `📅 Tanggal: ${transferData.date}\n\n` +
+          `Terima kasih telah menggunakan JASA HRY! 🙏`;
+
+        // Cek apakah browser support Web Share API
+        if (navigator.share && navigator.canShare) {
+          try {
+            const file = new File([blob], `struk-${transferData.bankType}-${Date.now()}.png`, {
+              type: 'image/png'
+            });
+
+            if (navigator.canShare({ files: [file] })) {
+              await navigator.share({
+                title: 'Bukti Transfer - JASA HRY',
+                text: message,
+                files: [file]
+              });
+              console.log('✅ Image shared successfully');
+              return;
+            }
+          } catch (shareError) {
+            console.log('📱 Web Share failed, fallback to WhatsApp URL');
+          }
+        }
+
+        // Fallback: Buka WhatsApp dengan pesan text
+        const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message + '\n\n📸 Gambar struk akan dikirim terpisah')}`;
+        window.open(whatsappUrl, '_blank');
+        
+        // Download image untuk manual share
+        const link = document.createElement('a');
+        link.download = `struk-${transferData.bankType}-${Date.now()}.png`;
+        link.href = canvas.toDataURL();
+        link.click();
+        
+        alert('📱 WhatsApp terbuka! Gambar struk sudah didownload, silakan upload manual ke chat.');
+        
+      }, 'image/png', 0.9);
+      
+    } catch (error) {
+      console.error('❌ WhatsApp Share Error:', error);
+      alert('❌ Gagal share ke WhatsApp. Coba gunakan Simpan PDF.');
+    }
+  };
+
   const receiptWidth = transferData.paperSize === '58mm' ? 'w-48' : 'w-64';
 
   return (
@@ -102,6 +178,13 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
         >
           <Download className="w-5 h-5 mr-2" />
           Simpan PDF
+        </button>
+        <button
+          onClick={handleShareWhatsApp}
+          className="flex items-center px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold transition-colors"
+        >
+          <Share2 className="w-5 h-5 mr-2" />
+          Share WhatsApp
         </button>
       </div>
 
