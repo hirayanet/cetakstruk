@@ -12,6 +12,31 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
     return new Intl.NumberFormat('id-ID').format(num);
   };
 
+  const formatReferenceNumber = (refNumber: string) => {
+    // Untuk kertas 58mm, gunakan chunk yang lebih kecil
+    const maxLength = transferData.paperSize === '58mm' ? 15 : 20;
+
+    if (refNumber.length > maxLength) {
+      const chunks = [];
+      for (let i = 0; i < refNumber.length; i += maxLength) {
+        chunks.push(refNumber.slice(i, i + maxLength));
+      }
+      return chunks;
+    }
+    return [refNumber];
+  };
+
+  const canFitInOneLine = (refNumber: string) => {
+    // Hitung sisa space setelah "No. Ref: " untuk layout horizontal
+    // "No. Ref: " = 9 karakter
+    const totalWidth = transferData.paperSize === '58mm' ? 32 : 48;
+    const labelWidth = 9; // "No. Ref: "
+    const availableWidth = totalWidth - labelWidth;
+    return refNumber.length <= availableWidth;
+  };
+
+
+
   const totalAmount = transferData.amount + transferData.adminFee;
   const currentDateTime = new Date().toLocaleString('id-ID');
 
@@ -229,13 +254,28 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
               {transferData.receiverAccount && (
                 <div className="flex justify-between">
                   <span>No. Rekening:</span>
-                  <span className="font-mono">{transferData.receiverAccount}</span>
+                  <span className="font-mono text-right">{transferData.receiverAccount}</span>
                 </div>
               )}
-              <div className="flex justify-between">
-                <span>No. Ref:</span>
-                <span className="font-mono">{transferData.referenceNumber}</span>
-              </div>
+              {canFitInOneLine(transferData.referenceNumber) ? (
+                // Layout horizontal untuk nomor referensi yang muat dalam 1 baris
+                <div className="flex justify-between">
+                  <span>No. Ref:</span>
+                  <span className="font-mono text-right">{transferData.referenceNumber}</span>
+                </div>
+              ) : (
+                // Layout untuk nomor referensi panjang - 2 baris rata kanan
+                <div className="space-y-1">
+                  <span>No. Ref:</span>
+                  <div className="font-mono text-xs text-right leading-tight">
+                    {formatReferenceNumber(transferData.referenceNumber).map((chunk, index) => (
+                      <div key={index}>
+                        {chunk}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <hr className="my-3 border-dashed" />

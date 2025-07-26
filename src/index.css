@@ -97,3 +97,42 @@
     font-size: 11px;
   }
 }
+
+/* Receipt specific styles - hanya untuk nomor referensi 3+ baris */
+.receipt-ref-number {
+  word-break: break-all;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  line-height: 1.2;
+  font-size: 10px; /* Font kecil untuk nomor referensi 3+ baris */
+  max-width: 100%;
+}
+
+/* Print optimizations */
+@media print {
+  /* Font kecil hanya untuk nomor referensi 3+ baris */
+  .receipt-ref-number {
+    font-size: 9px !important; /* Font kecil saat print untuk 3+ baris */
+    line-height: 1.1 !important;
+    word-break: break-all !important;
+    overflow-wrap: break-word !important;
+  }
+
+  /* For 58mm paper, make text even smaller untuk 3+ baris */
+  body.printing-58mm .receipt-ref-number {
+    font-size: 8px !important;
+    line-height: 1.0 !important;
+  }
+
+  /* Font normal untuk 1-2 baris yang dipecah */
+  .text-xs {
+    font-size: 12px !important; /* Font normal saat print untuk 1-2 baris */
+    line-height: 1.2 !important;
+    word-break: break-all !important;
+    overflow-wrap: break-word !important;
+  }
+
+  body.printing-58mm .text-xs {
+    font-size: 11px !important; /* Sedikit lebih kecil untuk 58mm tapi tetap normal */
+  }
+}
