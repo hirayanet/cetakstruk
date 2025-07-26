@@ -1,6 +1,7 @@
 import React from 'react';
 import { Printer, Download, CheckCircle, Share2 } from 'lucide-react';
 import { TransferData } from '../types/TransferData';
+import { uploadReceiptToCloudinary, generateFileName } from '../utils/cloudinaryUpload';
 
 interface ReceiptPreviewProps {
   transferData: TransferData;
@@ -86,11 +87,20 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
 
   const handleShareWhatsApp = async () => {
     try {
+      console.log('🚀 Starting WhatsApp share process...');
+      
       const html2canvas = (await import('html2canvas')).default;
       
       const receiptElement = document.querySelector('.receipt-content') as HTMLElement;
       if (!receiptElement) {
         throw new Error('Receipt content not found');
+      }
+
+      // Show loading state
+      const shareButton = document.querySelector('[data-share-button]') as HTMLButtonElement;
+      if (shareButton) {
+        shareButton.textContent = 'Uploading...';
+        shareButton.disabled = true;
       }
 
       // Capture receipt sebagai image
@@ -103,58 +113,44 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
         logging: false
       });
 
-      // Pesan WhatsApp
-      const message = `📄 *BUKTI TRANSFER - JASA HRY*\n\n` +
-        `✅ Transfer berhasil!\n` +
-        `💰 Jumlah: Rp ${formatNumber(transferData.amount)}\n` +
-        `👤 Dari: ${transferData.senderName}\n` +
-        `👤 Ke: ${transferData.receiverName}\n` +
-        `🏦 Bank: ${transferData.receiverBank}\n` +
-        `📅 Tanggal: ${transferData.date}\n\n` +
-        `Terima kasih telah menggunakan JASA HRY! 🙏`;
-
-      // Buka WhatsApp dengan pesan
-      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
-      window.open(whatsappUrl, '_blank');
-
-      // Copy image ke clipboard (jika support)
+      // Convert to blob
       canvas.toBlob(async (blob) => {
-        if (!blob) return;
+        if (!blob) {
+          throw new Error('Failed to create image blob');
+        }
 
         try {
-          if (navigator.clipboard && navigator.clipboard.write) {
-            const clipboardItem = new ClipboardItem({
-              'image/png': blob
-            });
-            await navigator.clipboard.write([clipboardItem]);
-            
-            // Show success message dengan instruksi
-            setTimeout(() => {
-              alert('✅ WhatsApp terbuka!\n📋 Gambar struk sudah di-copy ke clipboard\n📱 Tinggal paste (Ctrl+V atau tahan & paste) di chat WhatsApp');
-            }, 1000);
-          } else {
-            // Fallback: Download image
-            const link = document.createElement('a');
-            link.download = `struk-${transferData.bankType}-${Date.now()}.png`;
-            link.href = canvas.toDataURL();
-            link.click();
-            
-            setTimeout(() => {
-              alert('✅ WhatsApp terbuka!\n📥 Gambar struk sudah didownload\n📱 Silakan upload gambar ke chat WhatsApp');
-            }, 1000);
+          // Upload to Cloudinary
+          const fileName = generateFileName(transferData.bankType);
+          const imageUrl = await uploadReceiptToCloudinary(blob, fileName);
+          
+          // Create WhatsApp message with compatible emojis
+          const message = `📄 *BUKTI TRANSFER - JASA HRY*\n\n` +
+            `✅ Transfer berhasil!\n` +
+            `💰 Jumlah: Rp ${formatNumber(transferData.amount)}\n` +
+            `👤 Dari: ${transferData.senderName}\n` +
+            `👤 Ke: ${transferData.receiverName}\n` +
+            `🏦 Bank: ${transferData.receiverBank}\n` +
+            `📅 Tanggal: ${transferData.date}\n\n` +
+            `📎 Lihat struk lengkap: ${imageUrl}\n\n` +
+            `Terima kasih telah menggunakan JASA HRY! 🙏`;
+          
+          // Open WhatsApp with message
+          const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+          window.open(whatsappUrl, '_blank');
+          
+          console.log('✅ WhatsApp share completed!');
+          alert('✅ Struk berhasil diupload! WhatsApp terbuka dengan link struk.');
+          
+        } catch (uploadError) {
+          console.error('❌ Upload failed:', uploadError);
+          alert('❌ Gagal upload struk. Coba lagi atau gunakan Simpan PDF.');
+        } finally {
+          // Reset button
+          if (shareButton) {
+            shareButton.textContent = 'Share WhatsApp';
+            shareButton.disabled = false;
           }
-        } catch (clipboardError) {
-          console.log('📋 Clipboard failed, using download');
-          
-          // Download sebagai backup
-          const link = document.createElement('a');
-          link.download = `struk-${transferData.bankType}-${Date.now()}.png`;
-          link.href = canvas.toDataURL();
-          link.click();
-          
-          setTimeout(() => {
-            alert('✅ WhatsApp terbuka!\n📥 Gambar struk sudah didownload\n📱 Silakan upload gambar ke chat WhatsApp');
-          }, 1000);
         }
       }, 'image/png', 0.9);
       
@@ -185,7 +181,8 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
         </button>
         <button
           onClick={handleShareWhatsApp}
-          className="flex items-center px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold transition-colors"
+          data-share-button
+          className="flex items-center px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Share2 className="w-5 h-5 mr-2" />
           Share WhatsApp
