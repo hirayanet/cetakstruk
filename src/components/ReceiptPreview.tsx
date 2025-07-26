@@ -14,7 +14,15 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
 
   const formatReferenceNumber = (refNumber: string) => {
     // Untuk kertas 58mm, gunakan chunk yang lebih kecil
-    const maxLength = transferData.paperSize === '58mm' ? 15 : 20;
+    // Untuk kertas 80mm, gunakan chunk yang optimal untuk nomor referensi panjang
+    let maxLength;
+    if (transferData.paperSize === '58mm') {
+      maxLength = 15;
+    } else {
+      // Untuk 80mm: jika nomor ref sangat panjang (>30), gunakan chunk 19 untuk pembagian yang seimbang
+      // 37 digit -> 19 + 18 (lebih seimbang daripada 25 + 12)
+      maxLength = refNumber.length > 30 ? 19 : 25;
+    }
 
     if (refNumber.length > maxLength) {
       const chunks = [];
@@ -27,9 +35,15 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
   };
 
   const canFitInOneLine = (refNumber: string) => {
+    // Untuk nomor referensi panjang (>30 digit), selalu gunakan multi-baris
+    // untuk memastikan tidak terpotong
+    if (refNumber.length > 30) {
+      return false;
+    }
+
     // Hitung sisa space setelah "No. Ref: " untuk layout horizontal
     // "No. Ref: " = 9 karakter
-    const totalWidth = transferData.paperSize === '58mm' ? 32 : 48;
+    const totalWidth = transferData.paperSize === '58mm' ? 32 : 50;
     const labelWidth = 9; // "No. Ref: "
     const availableWidth = totalWidth - labelWidth;
     return refNumber.length <= availableWidth;

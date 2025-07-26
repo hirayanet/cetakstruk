@@ -27,10 +27,13 @@ export class DanaProcessor extends BaseProcessor {
     return {
       ...baseData,
       bankType: 'DANA',
-      senderName: 'MAYA SARI',
-      amount: 150000,
-      referenceNumber: 'DNA' + Date.now().toString().slice(-8),
-      adminFee: 0 // Changed from 1000 to 0
+      senderName: '0857****4165', // Format ID DANA dengan asterisk
+      amount: 300000,
+      receiverName: 'GANI MUHAMMAD RAMADLAN', // Nama lengkap dari struk
+      receiverBank: 'SEABANK',
+      receiverAccount: '****0190',
+      referenceNumber: '2025072110121410010100166933269202437', // ID Transaksi lengkap 37 digit
+      adminFee: 0
     };
   }
 }

@@ -27,7 +27,7 @@ function App() {
     receiverBank: '',
     referenceNumber: '',
     adminFee: 0, // Changed from 2500 to 0
-    paperSize: '58mm',
+    paperSize: '80mm',
     bankType: 'BCA'
   });
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
@@ -128,8 +128,8 @@ function App() {
     console.log('🎯 Starting data extraction...');
     
     try {
-      // Extract data with pre-selected bank
-      const extractedData = await extractDataFromImage(imageUrl, selectedBank);
+      // Extract data with pre-selected bank and paper size
+      const extractedData = await extractDataFromImage(imageUrl, selectedBank, transferData.paperSize);
       console.log('✅ Data extracted:', extractedData);
       setTransferData(extractedData);
       setStep('form');

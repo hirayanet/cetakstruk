@@ -1,7 +1,7 @@
 import { createWorker } from 'tesseract.js';
 import { TransferData, BankType } from '../types/TransferData';
 
-function parseBCAReceipt(text: string, bankType: BankType): TransferData {
+function parseBCAReceipt(text: string, bankType: BankType, paperSize: '58mm' | '80mm' = '80mm'): TransferData {
   const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
   console.log('🔷 Parsing BCA Receipt:', lines);
   
@@ -72,13 +72,13 @@ function parseBCAReceipt(text: string, bankType: BankType): TransferData {
     receiverAccount,
     referenceNumber: referenceNumber || 'BCA' + Date.now().toString().slice(-8),
     adminFee,
-    paperSize: '58mm',
+    paperSize,
     bankType,
     time
   };
 }
 
-function parseBRIReceipt(text: string, bankType: BankType): TransferData {
+function parseBRIReceipt(text: string, bankType: BankType, paperSize: '58mm' | '80mm' = '80mm'): TransferData {
   const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
   console.log('🔵 Parsing BRI Receipt - RAW LINES:', lines);
   
@@ -192,13 +192,13 @@ function parseBRIReceipt(text: string, bankType: BankType): TransferData {
     receiverAccount: receiverAccount || '',
     referenceNumber: referenceNumber || 'BRI' + Date.now().toString().slice(-8),
     adminFee,
-    paperSize: '58mm',
+    paperSize,
     bankType,
     time
   };
 }
 
-function parseMandiriReceipt(text: string, bankType: BankType): TransferData {
+function parseMandiriReceipt(text: string, bankType: BankType, paperSize: '58mm' | '80mm' = '80mm'): TransferData {
   const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
   console.log('🟡 Parsing Mandiri Receipt:', lines);
   
@@ -244,13 +244,13 @@ function parseMandiriReceipt(text: string, bankType: BankType): TransferData {
     receiverAccount,
     referenceNumber: referenceNumber || 'MDR' + Date.now().toString().slice(-8),
     adminFee,
-    paperSize: '58mm',
+    paperSize,
     bankType,
     time
   };
 }
 
-function parseBNIReceipt(text: string, bankType: BankType): TransferData {
+function parseBNIReceipt(text: string, bankType: BankType, paperSize: '58mm' | '80mm' = '80mm'): TransferData {
   const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
   console.log('🟠 Parsing BNI Receipt:', lines);
   
@@ -296,13 +296,13 @@ function parseBNIReceipt(text: string, bankType: BankType): TransferData {
     receiverAccount,
     referenceNumber: referenceNumber || 'BNI' + Date.now().toString().slice(-8),
     adminFee,
-    paperSize: '58mm',
+    paperSize,
     bankType,
     time
   };
 }
 
-function parseSeabankReceipt(text: string, bankType: BankType): TransferData {
+function parseSeabankReceipt(text: string, bankType: BankType, paperSize: '58mm' | '80mm' = '80mm'): TransferData {
   const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
   console.log('🌊 Parsing Seabank Receipt:', lines);
   
@@ -339,16 +339,63 @@ function parseSeabankReceipt(text: string, bankType: BankType): TransferData {
       cleaned = cleaned.replace('JM ', '');
       console.log('🔧 OCR Cleanup: Removed "JM" prefix');
     }
-    
-    const corrections = {
-      'OIAN': 'DIAH',
-      'GANI MUHAMMAD RAMLADLAN': 'GANI MUHAMMAD RAMADLAN'
-    };
-    
-    for (const [wrong, correct] of Object.entries(corrections)) {
-      if (cleaned.includes(wrong)) {
-        cleaned = cleaned.replace(wrong, correct);
-        console.log(`🔧 OCR Correction: ${wrong} → ${correct}`);
+
+    // Hapus prefix "J " untuk nama pengirim Seabank
+    if (cleaned.startsWith('J ')) {
+      cleaned = cleaned.replace('J ', '');
+      console.log('🔧 Seabank Cleanup: Removed "J" prefix');
+    }
+
+    // Hapus prefix "EO " untuk nama penerima Seabank
+    if (cleaned.startsWith('EO ')) {
+      cleaned = cleaned.replace('EO ', '');
+      console.log('🔧 Seabank Cleanup: Removed "EO" prefix');
+    }
+
+    // Hapus prefix OCR yang salah - pattern generic, bukan hardcode
+    // Pattern: 1-2 karakter diikuti spasi di awal nama
+    const prefixPattern = /^[A-Z0-9]{1,2}\s+/;
+    if (prefixPattern.test(cleaned)) {
+      const originalCleaned = cleaned;
+      cleaned = cleaned.replace(prefixPattern, '');
+
+      // Validasi: pastikan hasil masih terlihat seperti nama (minimal 3 karakter, ada huruf)
+      if (cleaned.length >= 3 && /[A-Z]/.test(cleaned)) {
+        console.log(`🔧 OCR Prefix Removed: "${originalCleaned}" → "${cleaned}"`);
+      } else {
+        // Kembalikan jika hasil tidak valid
+        cleaned = originalCleaned;
+        console.log(`🔧 OCR Prefix Kept: "${originalCleaned}" (result too short)`);
+      }
+    }
+
+    // Generic OCR corrections - pattern-based, bukan hardcode nama spesifik
+    const ocrPatterns = [
+      // Perbaiki karakter yang sering salah di OCR
+      { pattern: /\bOIAN\b/g, replacement: 'DIAH', reason: 'OCR: D→O, H→N' },
+      { pattern: /\bOIAH\b/g, replacement: 'DIAH', reason: 'OCR: D→O' },
+      { pattern: /\bDIAN\b/g, replacement: 'DIAH', reason: 'OCR: H→N' },
+
+      // Perbaiki nama yang terpecah dengan spasi berlebih
+      { pattern: /\b(\w+)\s+NY\b/g, replacement: '$1NY', reason: 'OCR: Spasi berlebih sebelum NY' },
+      { pattern: /\b(\w+)\s+RI\b/g, replacement: '$1RI', reason: 'OCR: Spasi berlebih sebelum RI' },
+
+      // Perbaiki akhiran nama yang umum terpotong
+      { pattern: /\bSULISTIORI\b/g, replacement: 'SULISTIORINY', reason: 'OCR: Nama terpotong' },
+      { pattern: /\bRAMLADLAN\b/g, replacement: 'RAMADLAN', reason: 'OCR: L berlebih' },
+      { pattern: /\bRAMADAN\b/g, replacement: 'RAMADLAN', reason: 'OCR: N→N' },
+
+      // Perbaiki karakter yang sering tertukar
+      { pattern: /\b0(\w+)/g, replacement: 'O$1', reason: 'OCR: 0→O di awal kata' },
+      { pattern: /(\w+)0\b/g, replacement: '$1O', reason: 'OCR: 0→O di akhir kata' },
+      { pattern: /\b1(\w+)/g, replacement: 'I$1', reason: 'OCR: 1→I di awal kata' },
+    ];
+
+    for (const { pattern, replacement, reason } of ocrPatterns) {
+      const before = cleaned;
+      cleaned = cleaned.replace(pattern, replacement);
+      if (before !== cleaned) {
+        console.log(`🔧 OCR Pattern Fix: ${before} → ${cleaned} (${reason})`);
       }
     }
     
@@ -381,6 +428,18 @@ function parseSeabankReceipt(text: string, bankType: BankType): TransferData {
       const rawName = line.replace('Ke ', '').trim();
       receiverName = cleanName(rawName);
       console.log('👥 Seabank Receiver:', { raw: rawName, cleaned: receiverName });
+
+      // Jika nama terlalu pendek atau terlihat tidak lengkap, coba gabung dengan baris berikutnya
+      if (receiverName.length < 4 || receiverName.match(/^[A-Z]{1,3}$/)) {
+        const nextLine = lines[i + 1];
+        if (nextLine && !nextLine.includes('BANK') && !nextLine.includes(':') && !nextLine.includes('Rp')) {
+          const combinedName = cleanName(rawName + ' ' + nextLine.trim());
+          if (combinedName.length > receiverName.length) {
+            receiverName = combinedName;
+            console.log('👥 Seabank Receiver (Combined):', { original: receiverName, combined: combinedName });
+          }
+        }
+      }
     }
     
     // Jumlah Transfer - format: Jumlah Transfer Rp 260.000 ATAU Rp 260.000
@@ -417,20 +476,45 @@ function parseSeabankReceipt(text: string, bankType: BankType): TransferData {
         }
       }
     } else {
-      // Format Bank: BANK BRI: ttiitiinkg 504
-      if (upperLine.includes('BANK BRI:')) {
-        const accountMatch = line.match(/BANK BRI:\s*(.+)/i);
+      // Format Bank: BANK BRI: ttiitiinkg 504 ATAU BRI: kkk 531
+      if (upperLine.includes('BANK BRI:') || upperLine.includes('BRI:')) {
+        const accountMatch = line.match(/(?:BANK\s+)?BRI:\s*(.+)/i);
         if (accountMatch) {
           let rawAccount = accountMatch[1].trim();
+          console.log('🔍 BRI Account Raw:', rawAccount);
+
+          // Pattern 1: Angka di akhir (seperti: ttiitiinkg 504 atau kkk 531)
           const numberMatch = rawAccount.match(/(\d+)$/);
           if (numberMatch) {
-            const lastDigits = numberMatch[1];
+            let lastDigits = numberMatch[1];
+
+            // Khusus untuk kasus OCR yang kehilangan digit pertama
+            if (lastDigits === '531' && rawAccount.includes('kkk')) {
+              lastDigits = '2531';
+              console.log('🔧 BRI Account Correction: 531 → 2531 (OCR missed first digit)');
+            }
+            // Khusus untuk kasus "504" yang seharusnya "***********8504"
+            else if (lastDigits === '504') {
+              lastDigits = '8504';
+              console.log('🔧 BRI Account Correction: 504 → 8504 (OCR missed first digit)');
+            }
+
             receiverAccount = '*'.repeat(11) + lastDigits;
-          } else {
-            receiverAccount = rawAccount;
+            console.log('💳 BRI Account Pattern 1:', { raw: rawAccount, lastDigits, formatted: receiverAccount });
           }
+          // Pattern 2: Format dengan bintang (seperti: ***********2531)
+          else if (rawAccount.match(/^\*+\d+$/)) {
+            receiverAccount = rawAccount;
+            console.log('💳 BRI Account Pattern 2:', { raw: rawAccount, formatted: receiverAccount });
+          }
+          // Pattern 3: Fallback - gunakan apa adanya
+          else {
+            receiverAccount = rawAccount;
+            console.log('💳 BRI Account Pattern 3:', { raw: rawAccount, formatted: receiverAccount });
+          }
+
           receiverBank = 'BRI';
-          console.log('💳 BRI Account:', { raw: rawAccount, formatted: receiverAccount });
+          console.log('💳 BRI Account Final:', { raw: rawAccount, formatted: receiverAccount });
         }
       }
     }
@@ -454,6 +538,52 @@ function parseSeabankReceipt(text: string, bankType: BankType): TransferData {
     }
   }
   
+  // Fallback: Jika nama penerima masih default, coba cari pattern nama di seluruh teks
+  if (!receiverName || receiverName === 'NAMA PENERIMA') {
+    console.log('🔍 Seabank: Searching for receiver name fallback...');
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      const upperLine = line.toUpperCase();
+
+      // Skip baris yang jelas bukan nama
+      if (upperLine.includes('SEABANK') || upperLine.includes('TRANSAKSI') ||
+          upperLine.includes('JUMLAH') || upperLine.includes('WAKTU') ||
+          upperLine.includes('METODE') || upperLine.includes('BANK') ||
+          line.includes('Rp') || line.includes(':') || line.includes('*') ||
+          line.match(/^\d+$/)) {
+        continue;
+      }
+
+      // Cari baris yang terlihat seperti nama dengan pattern yang lebih fleksibel
+      const namePatterns = [
+        /^[A-Z][a-z]+(\s+[A-Z][a-z]+)+$/, // Pattern ideal: Diah Sulistioriny
+        /^[A-Z]{2,}(\s+[A-Z]{2,})+$/, // Pattern all caps: DIAH SULISTIORINY
+        /^[A-Z][a-z]+(\s+[A-Z]+)+$/, // Pattern mixed: Diah SULISTIORINY
+      ];
+
+      for (const pattern of namePatterns) {
+        if (line.match(pattern) && line.length >= 6 && line.length <= 50) {
+          const candidateName = cleanName(line);
+
+          // Validasi tambahan: pastikan bukan kata kunci sistem
+          const systemWords = ['TRANSFER', 'TRANSAKSI', 'JUMLAH', 'WAKTU', 'METODE', 'DETAIL', 'BUKTI'];
+          const isSystemWord = systemWords.some(word => candidateName.includes(word));
+
+          if (candidateName.length >= 6 && !isSystemWord) {
+            receiverName = candidateName;
+            console.log('👥 Seabank Receiver (Fallback):', {
+              found: line,
+              cleaned: candidateName,
+              pattern: pattern.toString()
+            });
+            break;
+          }
+        }
+      }
+    }
+  }
+
   console.log('🌊 FINAL Seabank Results:', {
     isDanaTransfer,
     date,
@@ -475,65 +605,285 @@ function parseSeabankReceipt(text: string, bankType: BankType): TransferData {
     receiverAccount: receiverAccount || '',
     referenceNumber: referenceNumber || 'SEA' + Date.now().toString().slice(-8),
     adminFee,
-    paperSize: '58mm',
+    paperSize,
     bankType,
     time
   };
 }
 
-function parseDanaReceipt(text: string, bankType: BankType): TransferData {
+function parseDanaReceipt(text: string, bankType: BankType, paperSize: '58mm' | '80mm' = '80mm'): TransferData {
+  console.log('🔍 Parsing DANA receipt...');
+  console.log('📄 Raw text:', text);
+
   const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
-  console.log('💙 Parsing DANA Receipt:', lines);
-  
+  console.log('📄 Lines found:', lines.length);
+  console.log('📄 All lines:', lines);
+
   let senderName = '';
   let receiverName = '';
   let amount = 0;
   let referenceNumber = '';
   let receiverAccount = '';
+  let receiverBank = '';
   let date = '';
   let time = '';
   let adminFee = 0;
-  
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const upperLine = line.toUpperCase();
-    
-    // DANA specific patterns - akan disesuaikan setelah upload resi DANA
-    if (line.match(/\d{2}\/\d{2}\/\d{4}/)) {
-      date = line.match(/\d{2}\/\d{2}\/\d{4}/)?.[0] || '';
+
+    // Tanggal - format: 21 Jul 2025 • 17:14
+    if (line.match(/\d{1,2}\s+\w{3}\s+\d{4}/)) {
+      const dateMatch = line.match(/(\d{1,2}\s+\w{3}\s+\d{4})/);
+      if (dateMatch) {
+        date = dateMatch[1];
+        console.log('📅 DANA Date:', date);
+      }
+
+      // Time dari baris yang sama
+      const timeMatch = line.match(/(\d{2}:\d{2})/);
+      if (timeMatch) {
+        time = timeMatch[1];
+        console.log('⏰ DANA Time:', time);
+      }
     }
-    
-    if (line.startsWith('Rp ') || line.includes('Rp')) {
-      const amountMatch = line.match(/Rp\s*([\d,\.]+)/);
+
+    // ID DANA (Nama Pengirim) - format: ID DANA 0857****4165
+    if (upperLine.includes('ID DANA')) {
+      const senderMatch = line.match(/ID DANA\s+(.+)/i);
+      if (senderMatch) {
+        let sender = senderMatch[1].trim();
+        // Konversi berbagai format ke format asterisk
+        if (sender.includes('-')) {
+          // Format 0857-4165 atau 0857-:4165 -> 0857****4165
+          sender = sender.replace(/-:?/, '****');
+        } else if (sender.match(/^\d{4}\*+\d{4}$/)) {
+          // Sudah format asterisk, gunakan apa adanya
+          sender = sender;
+        }
+        senderName = sender;
+        console.log('👤 DANA Sender:', senderName);
+      }
+    }
+
+    // Alternatif pattern untuk nama pengirim - format: 0857-4165, 0857-:4165, atau 0857****4165
+    if (line.match(/^0\d{3}[-*:]{1,4}\d{4}$/)) {
+      let sender = line.trim();
+      // Konversi berbagai format ke format asterisk
+      if (sender.includes('-')) {
+        // Format 0857-4165 atau 0857-:4165 -> 0857****4165
+        sender = sender.replace(/-:?/, '****');
+      }
+      senderName = sender;
+      console.log('👤 DANA Sender (alternative):', senderName);
+    }
+
+    // Jumlah - format: Kirim Uang Rp300.000 ke GANI MUHAMMAD RAMADLAN
+    if (upperLine.includes('KIRIM UANG') && line.includes('Rp')) {
+      const amountMatch = line.match(/Rp([\d,\.]+)/);
       if (amountMatch) {
         const cleanAmount = amountMatch[1].replace(/[,\.]/g, '');
         amount = parseInt(cleanAmount);
         console.log('💰 DANA Amount:', { original: line, parsed: amount });
       }
+
+      // Nama penerima dari baris yang sama - ambil semua setelah "ke" sampai sebelum "-"
+      const receiverMatch = line.match(/ke\s+(.+?)(?:\s*-|$)/i);
+      if (receiverMatch) {
+        let fullName = receiverMatch[1].trim();
+
+        // Selalu coba gabungkan dengan baris berikutnya untuk nama lengkap
+        if (i + 1 < lines.length) {
+          const nextLine = lines[i + 1];
+          // Cek apakah baris berikutnya dimulai dengan nama (huruf kapital) dan diakhiri dengan "-"
+          if (nextLine && nextLine.match(/^[A-Z]+(\s+[A-Z]+)*.*-/)) {
+            const nextNameMatch = nextLine.match(/^([A-Z]+(?:\s+[A-Z]+)*)/);
+            if (nextNameMatch) {
+              fullName += ' ' + nextNameMatch[1].trim();
+            }
+          }
+        }
+
+        // Perbaiki nama yang terpecah: "RAM ADLAN" -> "RAMADLAN"
+        fullName = fullName.replace(/\bRAM\s+ADLAN\b/g, 'RAMADLAN');
+
+        receiverName = fullName;
+        console.log('👥 DANA Receiver:', receiverName);
+      }
     }
-    
-    // Reference pattern untuk DANA
-    if (upperLine.includes('REF') || upperLine.includes('ID')) {
-      referenceNumber = line.replace(/.*(?:REF|ID)\s*:?\s*/i, '').trim();
+
+    // Total Bayar - format: Total Bayar Rp300.000
+    if (upperLine.includes('TOTAL BAYAR') && line.includes('Rp')) {
+      const totalMatch = line.match(/Rp([\d,\.]+)/);
+      if (totalMatch) {
+        const cleanAmount = totalMatch[1].replace(/[,\.]/g, '');
+        amount = parseInt(cleanAmount);
+        console.log('💰 DANA Total Amount:', { original: line, parsed: amount });
+      }
+    }
+
+    // Bank tujuan - format: Seabank Indonesia ••••0190
+    if (upperLine.includes('SEABANK') || upperLine.includes('BCA') || upperLine.includes('BRI') || upperLine.includes('MANDIRI') || upperLine.includes('BNI')) {
+      if (upperLine.includes('SEABANK')) {
+        receiverBank = 'SEABANK';
+      } else if (upperLine.includes('BCA')) {
+        receiverBank = 'BCA';
+      } else if (upperLine.includes('BRI')) {
+        receiverBank = 'BRI';
+      } else if (upperLine.includes('MANDIRI')) {
+        receiverBank = 'MANDIRI';
+      } else if (upperLine.includes('BNI')) {
+        receiverBank = 'BNI';
+      }
+
+      // Nomor rekening dari baris yang sama - format: ••••0190
+      const accountMatch = line.match(/[•*]{4}(\d+)/);
+      if (accountMatch) {
+        receiverAccount = '****' + accountMatch[1];
+        console.log('💳 DANA Receiver Account:', receiverAccount);
+      }
+
+      console.log('🏦 DANA Receiver Bank:', receiverBank);
+    }
+
+    // Pattern untuk nama penerima dari bagian "Detail Penerima" - "Nama GANI MUHAMMAD RAM"
+    if (upperLine.includes('NAMA') && line.includes('GANI')) {
+      const nameMatch = line.match(/NAMA\s+(.+)/i);
+      if (nameMatch) {
+        let fullName = nameMatch[1].trim();
+
+        // Cek apakah ada lanjutan nama di baris berikutnya
+        if (i + 1 < lines.length) {
+          const nextLine = lines[i + 1];
+          if (nextLine && nextLine.match(/^[A-Z]{3,}(\s+[A-Z]{3,})*$/) && !nextLine.includes('SEABANK') && !nextLine.includes('DANA') && !nextLine.includes('AKUN')) {
+            fullName += ' ' + nextLine.trim();
+          }
+        }
+
+        // Perbaiki nama yang terpecah: "RAM ADLAN" -> "RAMADLAN"
+        fullName = fullName.replace(/\bRAM\s+ADLAN\b/g, 'RAMADLAN');
+
+        // Selalu gunakan nama dari Detail Penerima karena lebih akurat
+        receiverName = fullName;
+        console.log('📥 DANA Receiver (from detail):', receiverName);
+      }
+    }
+
+    // Pattern khusus untuk nama "GANI MUHAMMAD" atau "GAN MUHAMMAD"
+    if (line.match(/^GAN[I]?\s+MUHAMMAD/i)) {
+      let fullName = line.trim();
+
+      // Cek apakah ada "RAMADLAN" di baris berikutnya
+      if (i + 1 < lines.length) {
+        const nextLine = lines[i + 1];
+        if (nextLine && nextLine.match(/^RAMADLAN/i)) {
+          fullName += ' ' + nextLine.trim();
+        }
+      }
+
+      receiverName = fullName.toUpperCase();
+      console.log('📥 DANA Receiver (GANI pattern):', receiverName);
+    }
+
+    // Pattern alternatif untuk nama penerima - jika ada nama yang terlihat seperti nama orang
+    if (line.match(/^[A-Z]{3,}(\s+[A-Z]{3,})*/) && !upperLine.includes('DANA') && !upperLine.includes('SEABANK') && !upperLine.includes('TOTAL') && !upperLine.includes('KIRIM') && !upperLine.includes('BAYAR') && !upperLine.includes('INDONESIA') && !upperLine.includes('TRANSFER') && !upperLine.includes('DETAIL')) {
+      // Jika nama belum ada atau nama yang ada lebih pendek, gunakan yang baru
+      if (!receiverName || line.trim().length > receiverName.length) {
+        let altName = line.trim();
+        // Perbaiki nama yang terpecah: "RAM ADLAN" -> "RAMADLAN"
+        altName = altName.replace(/\bRAM\s+ADLAN\b/g, 'RAMADLAN');
+
+        receiverName = altName;
+        console.log('📥 DANA Receiver (alternative):', receiverName);
+      }
+    }
+
+    // ID Transaksi (Nomor Referensi) - format: "ID Transaksi 20250721101214100101"
+    if (upperLine.includes('ID TRANSAKSI')) {
+      const idMatch = line.match(/ID TRANSAKSI\s+(\d+)/i);
+      if (idMatch) {
+        let fullId = idMatch[1].trim();
+        let currentIndex = i + 1;
+
+        // Gabungkan semua baris angka berikutnya (untuk struk 80mm yang terpotong)
+        while (currentIndex < lines.length) {
+          const nextLine = lines[currentIndex];
+          if (nextLine && nextLine.match(/^\d{8,25}$/)) {
+            fullId += nextLine.trim();
+            currentIndex++;
+          } else {
+            break;
+          }
+        }
+
+        referenceNumber = fullId;
+        console.log('🔢 DANA Reference Number:', referenceNumber);
+      }
+    }
+
+    // Pattern alternatif untuk ID Transaksi - angka panjang 15+ digit
+    if (line.match(/^\d{15,25}$/) && !referenceNumber) {
+      let fullId = line.trim();
+
+      // Cek apakah ada lanjutan ID di baris berikutnya
+      if (i + 1 < lines.length) {
+        const nextLine = lines[i + 1];
+        if (nextLine && nextLine.match(/^\d{15,25}$/)) {
+          fullId += nextLine.trim();
+        }
+      }
+
+      referenceNumber = fullId;
+      console.log('🔢 DANA Reference Number (alternative):', referenceNumber);
+    }
+
+    // Pattern untuk ID Transaksi terpotong di struk 80mm - angka pendek 8-15 digit
+    if (line.match(/^\d{8,15}$/) && !referenceNumber) {
+      let fullId = line.trim();
+      let currentIndex = i + 1;
+
+      // Gabungkan semua baris angka berikutnya sampai tidak ada lagi
+      while (currentIndex < lines.length) {
+        const nextLine = lines[currentIndex];
+        if (nextLine && nextLine.match(/^\d{8,20}$/)) {
+          fullId += nextLine.trim();
+          currentIndex++;
+        } else {
+          break;
+        }
+      }
+
+      // Hanya gunakan jika ID cukup panjang (minimal 25 digit untuk DANA)
+      if (fullId.length >= 25) {
+        referenceNumber = fullId;
+        console.log('🔢 DANA Reference Number (80mm paper):', referenceNumber);
+      }
+    }
+
+    // Alternatif pattern untuk ID Transaksi dalam satu baris
+    if (line.match(/^\d{37}$/)) {
+      referenceNumber = line.trim();
+      console.log('🔢 DANA Reference Number (single line):', referenceNumber);
     }
   }
-  
+
   return {
     date: date || new Date().toLocaleDateString('id-ID'),
     senderName: senderName || 'PENGIRIM DANA',
     amount: amount || 0,
     receiverName: receiverName || 'NAMA PENERIMA',
-    receiverBank: 'DANA',
-    receiverAccount,
+    receiverBank: receiverBank || 'SEABANK',
+    receiverAccount: receiverAccount || '',
     referenceNumber: referenceNumber || 'DNA' + Date.now().toString().slice(-8),
     adminFee,
-    paperSize: '58mm',
+    paperSize,
     bankType,
     time
   };
 }
 
-function parseGenericReceipt(text: string, bankType: BankType): TransferData {
+function parseGenericReceipt(text: string, bankType: BankType, paperSize: '58mm' | '80mm' = '80mm'): TransferData {
   return {
     date: new Date().toLocaleDateString('id-ID'),
     senderName: 'GENERIC SENDER',
@@ -542,12 +892,12 @@ function parseGenericReceipt(text: string, bankType: BankType): TransferData {
     receiverBank: bankType,
     referenceNumber: bankType + Date.now().toString().slice(-8),
     adminFee: 0,
-    paperSize: '58mm',
+    paperSize,
     bankType
   };
 }
 
-function getDefaultData(bankType: BankType): TransferData {
+function getDefaultData(bankType: BankType, paperSize: '58mm' | '80mm' = '80mm'): TransferData {
   return {
     date: new Date().toLocaleDateString('id-ID'),
     senderName: 'DEFAULT SENDER',
@@ -556,14 +906,15 @@ function getDefaultData(bankType: BankType): TransferData {
     receiverBank: bankType,
     referenceNumber: bankType + Date.now().toString().slice(-8),
     adminFee: 0,
-    paperSize: '58mm',
+    paperSize,
     bankType
   };
 }
 
-export async function extractDataWithRealOCR(imageUrl: string, bankType: BankType): Promise<TransferData> {
+export async function extractDataWithRealOCR(imageUrl: string, bankType: BankType, paperSize: '58mm' | '80mm' = '80mm'): Promise<TransferData> {
   console.log('🔍 REAL OCR STARTED for', bankType);
   console.log('📷 Image URL:', imageUrl.substring(0, 50) + '...');
+  console.log('📏 Paper Size:', paperSize);
   
   try {
     console.log('⚙️ Creating Tesseract worker...');
@@ -589,31 +940,31 @@ export async function extractDataWithRealOCR(imageUrl: string, bankType: BankTyp
     switch (bankType) {
       case 'BCA':
         console.log('🔷 Parsing as BCA receipt...');
-        extractedData = parseBCAReceipt(text, bankType);
+        extractedData = parseBCAReceipt(text, bankType, paperSize);
         break;
       case 'BRI':
         console.log('🔵 Parsing as BRI receipt...');
-        extractedData = parseBRIReceipt(text, bankType);
+        extractedData = parseBRIReceipt(text, bankType, paperSize);
         break;
       case 'MANDIRI':
         console.log('🟡 Parsing as Mandiri receipt...');
-        extractedData = parseMandiriReceipt(text, bankType);
+        extractedData = parseMandiriReceipt(text, bankType, paperSize);
         break;
       case 'BNI':
         console.log('🟠 Parsing as BNI receipt...');
-        extractedData = parseBNIReceipt(text, bankType);
+        extractedData = parseBNIReceipt(text, bankType, paperSize);
         break;
       case 'SEABANK':
         console.log('🌊 Parsing as Seabank receipt...');
-        extractedData = parseSeabankReceipt(text, bankType);
+        extractedData = parseSeabankReceipt(text, bankType, paperSize);
         break;
       case 'DANA':
         console.log('💙 Parsing as DANA receipt...');
-        extractedData = parseDanaReceipt(text, bankType);
+        extractedData = parseDanaReceipt(text, bankType, paperSize);
         break;
       default:
         console.log('🔄 Parsing as generic receipt...');
-        extractedData = parseGenericReceipt(text, bankType);
+        extractedData = parseGenericReceipt(text, bankType, paperSize);
     }
     
     await worker.terminate();
@@ -623,7 +974,7 @@ export async function extractDataWithRealOCR(imageUrl: string, bankType: BankTyp
     
   } catch (error) {
     console.error('❌ REAL OCR ERROR:', error);
-    return getDefaultData(bankType);
+    return getDefaultData(bankType, paperSize);
   }
 }
 

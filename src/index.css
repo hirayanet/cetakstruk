@@ -110,15 +110,15 @@
 
 /* Print optimizations */
 @media print {
-  /* Font kecil hanya untuk nomor referensi 3+ baris */
+  /* Font untuk nomor referensi - lebih besar untuk 80mm */
   .receipt-ref-number {
-    font-size: 9px !important; /* Font kecil saat print untuk 3+ baris */
+    font-size: 10px !important; /* Font lebih besar untuk 80mm */
     line-height: 1.1 !important;
     word-break: break-all !important;
     overflow-wrap: break-word !important;
   }
 
-  /* For 58mm paper, make text even smaller untuk 3+ baris */
+  /* For 58mm paper, make text smaller */
   body.printing-58mm .receipt-ref-number {
     font-size: 8px !important;
     line-height: 1.0 !important;
