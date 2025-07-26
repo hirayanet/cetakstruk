@@ -11,7 +11,9 @@ interface TransferFormProps {
 export default function TransferForm({ initialData, uploadedImage, onSubmit }: TransferFormProps) {
   const [formData, setFormData] = useState<TransferData>({
     ...initialData,
-    receiverAccount: initialData.receiverAccount || ''
+    receiverAccount: initialData.receiverAccount || '',
+    // Set default nama pengirim untuk BCA
+    senderName: initialData.bankType === 'BCA' ? 'GANI MUHAMMAD RMADLAN' : initialData.senderName
   });
   const [detectionInfo, setDetectionInfo] = useState<string>('');
 

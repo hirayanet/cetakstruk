@@ -61,7 +61,7 @@ function parseBCAReceipt(text: string, bankType: BankType): TransferData {
     }
   }
   
-  if (!senderName) senderName = 'PENGIRIM BCA';
+  if (!senderName) senderName = 'GANI MUHAMMAD RMADLAN';
   
   return {
     date: date || new Date().toLocaleDateString('id-ID'),

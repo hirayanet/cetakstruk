@@ -22,11 +22,11 @@ export class BCAProcessor extends BaseProcessor {
 
   extractData(imageData: ImageData, width: number, height: number): TransferData {
     const baseData = this.getDefaultData();
-    
+
     return {
       ...baseData,
       bankType: 'BCA',
-      senderName: 'JANE SMITH',
+      senderName: 'GANI MUHAMMAD RMADLAN', // Default nama pengirim untuk BCA
       amount: 750000,
       receiverName: 'BUDI SANTOSO',
       receiverBank: 'BRI',
