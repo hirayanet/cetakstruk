@@ -1,12 +1,22 @@
-import React, { useState } from 'react';
-import { Upload, FileImage, Printer, Download, Calculator, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Upload, FileImage, Printer, Download, Calculator, CheckCircle, LogOut, Home } from 'lucide-react';
 import ImageUploader from './components/ImageUploader';
 import TransferForm from './components/TransferForm';
 import ReceiptPreview from './components/ReceiptPreview';
+import LoginForm from './components/LoginForm';
 import { TransferData, BankType } from './types/TransferData';
 import { extractDataFromImage } from './utils/ocrSimulator';
+import { saveAuthData, loadAuthData, clearAuthData, saveAppState, loadAppState, clearAppState } from './utils/auth';
 
 function App() {
+  // Authentication state
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [loginError, setLoginError] = useState('');
+  const [currentUser, setCurrentUser] = useState('');
+  const [isInitializing, setIsInitializing] = useState(true);
+
+  // Application state
   const [step, setStep] = useState<'bank-select' | 'upload' | 'form' | 'preview'>('bank-select');
   const [selectedBank, setSelectedBank] = useState<BankType>('BCA');
   const [transferData, setTransferData] = useState<TransferData>({
@@ -22,6 +32,88 @@ function App() {
   });
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
+
+  // Load authentication state and app state from localStorage on app start
+  useEffect(() => {
+    const authData = loadAuthData();
+    if (authData && authData.isAuthenticated && authData.currentUser) {
+      setIsAuthenticated(true);
+      setCurrentUser(authData.currentUser);
+
+      // Load app state if user is authenticated
+      const appState = loadAppState();
+      if (appState) {
+        setStep(appState.step);
+        setSelectedBank(appState.selectedBank);
+        setTransferData(appState.transferData);
+        setUploadedImage(appState.uploadedImage);
+      }
+    }
+    setIsInitializing(false);
+  }, []);
+
+  // Save authentication state to localStorage whenever it changes
+  useEffect(() => {
+    if (!isInitializing && isAuthenticated) {
+      saveAuthData({
+        isAuthenticated,
+        currentUser
+      });
+    }
+  }, [isAuthenticated, currentUser, isInitializing]);
+
+  // Save app state to localStorage whenever it changes (only if authenticated)
+  useEffect(() => {
+    if (!isInitializing && isAuthenticated) {
+      saveAppState({
+        step,
+        selectedBank,
+        transferData,
+        uploadedImage
+      });
+    }
+  }, [step, selectedBank, transferData, uploadedImage, isAuthenticated, isInitializing]);
+
+  // Authentication functions
+  const handleLogin = async (username: string, password: string) => {
+    setIsLoggingIn(true);
+    setLoginError('');
+
+    // Simulate API call delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // Simple authentication logic (in production, this should be done on the server)
+    if (username === 'admin' && password === 'admin123') {
+      setIsAuthenticated(true);
+      setCurrentUser(username);
+      setLoginError('');
+    } else {
+      setLoginError('Username atau password salah. Silakan coba lagi.');
+    }
+
+    setIsLoggingIn(false);
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setCurrentUser('');
+    setStep('bank-select');
+    setUploadedImage(null);
+    setTransferData({
+      date: '',
+      senderName: '',
+      amount: 0,
+      receiverName: '',
+      receiverBank: '',
+      referenceNumber: '',
+      adminFee: 0,
+      paperSize: '58mm',
+      bankType: 'BCA'
+    });
+    // Clear authentication data and app state from localStorage
+    clearAuthData();
+    clearAppState();
+  };
 
   const handleBankSelect = (bank: BankType) => {
     setSelectedBank(bank);
@@ -74,7 +166,36 @@ function App() {
       paperSize: '58mm',
       bankType: 'BCA'
     });
+    // Clear app state but keep authentication
+    clearAppState();
   };
+
+  // Show loading screen while initializing
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-green-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <FileImage className="w-8 h-8 text-white" />
+          </div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Memuat Aplikasi...</h2>
+          <p className="text-gray-600">Cetak Bukti Transfer - Jasa HRY</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login form if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <LoginForm
+        onLogin={handleLogin}
+        isLoading={isLoggingIn}
+        error={loginError}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50">
@@ -88,13 +209,38 @@ function App() {
               </div>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">Cetak Bukti Transfer</h1>
-                <p className="text-sm text-gray-600">Jasa HRY - Sederhana, Cepat, Rapi!</p>
+                <p className="text-sm text-gray-600">HRY - Sederhana, Cepat, Rapi!</p>
               </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <div className={`w-3 h-3 rounded-full ${step === 'upload' ? 'bg-blue-600' : 'bg-green-500'}`}></div>
-              <div className={`w-3 h-3 rounded-full ${step === 'form' ? 'bg-blue-600' : step === 'preview' ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-              <div className={`w-3 h-3 rounded-full ${step === 'preview' ? 'bg-blue-600' : 'bg-gray-300'}`}></div>
+            <div className="flex items-center space-x-4">
+              {/* User info and actions */}
+              <div className="flex items-center space-x-3">
+                <span className="text-sm text-gray-600">Halo, <strong>{currentUser}</strong></span>
+                {step !== 'bank-select' && (
+                  <button
+                    onClick={handleNewReceipt}
+                    className="flex items-center space-x-1 px-3 py-1 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                    title="Kembali ke Home"
+                  >
+                    <Home className="w-4 h-4" />
+                    <span>Home</span>
+                  </button>
+                )}
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center space-x-1 px-3 py-1 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                  title="Keluar"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Keluar</span>
+                </button>
+              </div>
+              {/* Progress indicators */}
+              <div className="flex items-center space-x-2">
+                <div className={`w-3 h-3 rounded-full ${step === 'upload' ? 'bg-blue-600' : 'bg-green-500'}`}></div>
+                <div className={`w-3 h-3 rounded-full ${step === 'form' ? 'bg-blue-600' : step === 'preview' ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                <div className={`w-3 h-3 rounded-full ${step === 'preview' ? 'bg-blue-600' : 'bg-gray-300'}`}></div>
+              </div>
             </div>
           </div>
         </div>
