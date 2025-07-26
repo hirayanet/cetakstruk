@@ -27,7 +27,7 @@ function App() {
     receiverName: '',
     receiverBank: '',
     referenceNumber: '',
-    adminFee: 0,
+    adminFee: 0, // Changed from 2500 to 0
     paperSize: '80mm',
     bankType: 'BCA'
   });
@@ -58,59 +58,53 @@ function App() {
     setIsInitializing(false);
   }, []);
 
-  // Save app state whenever it changes (only if authenticated)
+  // Save authentication state to localStorage whenever it changes
   useEffect(() => {
-    if (isAuthenticated && !isInitializing) {
-      const appState = {
+    if (!isInitializing && isAuthenticated) {
+      saveAuthData({
+        isAuthenticated,
+        currentUser
+      });
+    }
+  }, [isAuthenticated, currentUser, isInitializing]);
+
+  // Save app state to localStorage whenever it changes (only if authenticated)
+  useEffect(() => {
+    if (!isInitializing && isAuthenticated) {
+      saveAppState({
         step,
         selectedBank,
         transferData,
         uploadedImage
-      };
-      saveAppState(appState);
+      });
     }
   }, [step, selectedBank, transferData, uploadedImage, isAuthenticated, isInitializing]);
 
+  // Authentication functions
   const handleLogin = async (username: string, password: string) => {
     setIsLoggingIn(true);
     setLoginError('');
 
-    try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+    // Simulate API call delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
-      const validCredentials = [
-        { username: 'admin', password: 'admin123' },
-        { username: 'user', password: 'user123' },
-        { username: 'hry', password: 'hry2025' }
-      ];
-
-      const isValid = validCredentials.some(
-        cred => cred.username === username && cred.password === password
-      );
-
-      if (isValid) {
-        setIsAuthenticated(true);
-        setCurrentUser(username);
-        saveAuthData({ isAuthenticated: true, currentUser: username });
-      } else {
-        setLoginError('Username atau password salah');
-      }
-    } catch (error) {
-      setLoginError('Terjadi kesalahan saat login');
-    } finally {
-      setIsLoggingIn(false);
+    // Simple authentication logic (in production, this should be done on the server)
+    if (username === 'admin' && password === 'admin123') {
+      setIsAuthenticated(true);
+      setCurrentUser(username);
+      setLoginError('');
+    } else {
+      setLoginError('Username atau password salah. Silakan coba lagi.');
     }
+
+    setIsLoggingIn(false);
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
     setCurrentUser('');
-    clearAuthData();
-    clearAppState();
-
-    // Reset app state
     setStep('bank-select');
-    setSelectedBank('BCA');
+    setUploadedImage(null);
     setTransferData({
       date: '',
       senderName: '',
@@ -119,12 +113,12 @@ function App() {
       receiverBank: '',
       referenceNumber: '',
       adminFee: 0,
-      paperSize: '80mm',
+      paperSize: '58mm',
       bankType: 'BCA'
     });
-    setUploadedImage(null);
-    setIsExtracting(false);
-    setExtractionProgress({ stage: '', message: '', percentage: 0 });
+    // Clear authentication data and app state from localStorage
+    clearAuthData();
+    clearAppState();
   };
 
   const handleBankSelect = (bank: BankType) => {
@@ -147,6 +141,7 @@ function App() {
         percentage: 20
       });
 
+      // Small delay to show upload complete
       await new Promise(resolve => setTimeout(resolve, 800));
 
       // Stage 2: Initializing OCR
@@ -156,6 +151,7 @@ function App() {
         percentage: 40
       });
 
+      // Small delay for initialization
       await new Promise(resolve => setTimeout(resolve, 600));
 
       // Stage 3: Processing Image
@@ -175,6 +171,7 @@ function App() {
         percentage: 80
       });
 
+      // Small delay to show parsing
       await new Promise(resolve => setTimeout(resolve, 500));
 
       // Stage 5: Complete
@@ -187,6 +184,7 @@ function App() {
       console.log('✅ Data extracted:', extractedData);
       setTransferData(extractedData);
 
+      // Small delay to show completion
       await new Promise(resolve => setTimeout(resolve, 800));
       setStep('form');
     } catch (error) {
@@ -196,7 +194,7 @@ function App() {
         message: '❌ Gagal membaca gambar. Pastikan foto jelas dan coba lagi.',
         percentage: 0
       });
-      
+
       // Auto-reset after 5 seconds
       setTimeout(() => {
         setIsExtracting(false);
@@ -208,6 +206,7 @@ function App() {
       }, 5000);
     } finally {
       // Don't set isExtracting to false immediately if there's an error
+      // Let the error state show for a while
       if (extractionProgress.stage !== 'error') {
         setIsExtracting(false);
       }
@@ -250,19 +249,25 @@ function App() {
       receiverName: '',
       receiverBank: '',
       referenceNumber: '',
-      adminFee: 0,
-      paperSize: '80mm',
+      adminFee: 0, // Changed from 2500 to 0
+      paperSize: '58mm',
       bankType: 'BCA'
     });
+    // Clear app state but keep authentication
+    clearAppState();
   };
 
-  // Show loading screen during initialization
+  // Show loading screen while initializing
   if (isInitializing) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Memuat aplikasi...</p>
+          <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-green-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <FileImage className="w-8 h-8 text-white" />
+          </div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Memuat Aplikasi...</h2>
+          <p className="text-gray-600">Cetak Bukti Transfer - Jasa HRY</p>
         </div>
       </div>
     );
@@ -270,22 +275,28 @@ function App() {
 
   // Show login form if not authenticated
   if (!isAuthenticated) {
-    return <LoginForm onLogin={handleLogin} isLoading={isLoggingIn} error={loginError} />;
+    return (
+      <LoginForm
+        onLogin={handleLogin}
+        isLoading={isLoggingIn}
+        error={loginError}
+      />
+    );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50">
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-                <Calculator className="w-6 h-6 text-white" />
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-green-600 rounded-lg flex items-center justify-center">
+                <FileImage className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Jasa HRY</h1>
-                <p className="text-sm text-gray-600">Cetak Struk Transfer</p>
+                <h1 className="text-xl font-bold text-gray-900">Cetak Bukti Transfer</h1>
+                <p className="text-sm text-gray-600">HRY - Sederhana, Cepat, Rapi!</p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
@@ -311,6 +322,12 @@ function App() {
                   <span>Keluar</span>
                 </button>
               </div>
+              {/* Progress indicators */}
+              <div className="flex items-center space-x-2">
+                <div className={`w-3 h-3 rounded-full ${step === 'upload' ? 'bg-blue-600' : 'bg-green-500'}`}></div>
+                <div className={`w-3 h-3 rounded-full ${step === 'form' ? 'bg-blue-600' : step === 'preview' ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                <div className={`w-3 h-3 rounded-full ${step === 'preview' ? 'bg-blue-600' : 'bg-gray-300'}`}></div>
+              </div>
             </div>
           </div>
         </div>
@@ -324,7 +341,7 @@ function App() {
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Pilih Bank</h2>
               <p className="text-gray-600">Pilih bank dari resi transfer yang akan diupload</p>
             </div>
-
+            
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-w-2xl mx-auto">
               {[
                 { type: 'BCA', name: 'Bank BCA', color: 'bg-blue-800', icon: '🏦' },
@@ -416,17 +433,17 @@ function App() {
                     { key: 'processing', icon: '📖', label: 'Baca Teks' },
                     { key: 'parsing', icon: '🏦', label: 'Analisa' },
                     { key: 'complete', icon: '✅', label: 'Selesai' }
-                  ].map((stepItem, index) => (
-                    <div key={stepItem.key} className="text-center">
+                  ].map((step, index) => (
+                    <div key={step.key} className="text-center">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center mx-auto mb-1 ${
                         extractionProgress.percentage > (index * 20) ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400'
                       }`}>
-                        <span className="text-sm">{stepItem.icon}</span>
+                        <span className="text-sm">{step.icon}</span>
                       </div>
                       <span className={`${
                         extractionProgress.percentage > (index * 20) ? 'text-blue-600' : 'text-gray-400'
                       }`}>
-                        {stepItem.label}
+                        {step.label}
                       </span>
                     </div>
                   ))}
@@ -455,6 +472,7 @@ function App() {
 
         {step === 'form' && (
           <div className="space-y-6">
+            {/* Progress indicator removed from here since it's now in upload step */}
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900">Periksa Data Transfer</h2>
@@ -475,6 +493,98 @@ function App() {
           </div>
         )}
 
+
+              <div className="bg-white rounded-2xl shadow-lg p-8">
+                <div className="text-center mb-6">
+                  {/* Progress Icon */}
+                  <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    {extractionProgress.stage === 'complete' ? (
+                      <CheckCircle className="w-8 h-8 text-green-600" />
+                    ) : extractionProgress.stage === 'error' ? (
+                      <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center">
+                        <span className="text-white text-sm">!</span>
+                      </div>
+                    ) : (
+                      <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    )}
+                  </div>
+
+                  {/* Progress Title */}
+                  <h3 className="text-lg font-semibold mb-2">
+                    {extractionProgress.stage === 'complete' ? 'Selesai!' :
+                     extractionProgress.stage === 'error' ? 'Terjadi Kesalahan' :
+                     'Memproses Gambar...'}
+                  </h3>
+
+                  {/* Progress Message */}
+                  <p className="text-gray-600 text-sm mb-4">{extractionProgress.message}</p>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="mb-6">
+                  <div className="flex justify-between text-xs text-gray-500 mb-2">
+                    <span>Progress</span>
+                    <span>{extractionProgress.percentage}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full transition-all duration-500 ${
+                        extractionProgress.stage === 'error' ? 'bg-red-500' :
+                        extractionProgress.stage === 'complete' ? 'bg-green-500' : 'bg-blue-600'
+                      }`}
+                      style={{ width: `${extractionProgress.percentage}%` }}
+                    ></div>
+                  </div>
+                </div>
+
+                {/* Progress Steps */}
+                <div className="grid grid-cols-5 gap-2 text-xs">
+                  {[
+                    { key: 'upload', icon: '�', label: 'Upload' },
+                    { key: 'init', icon: '🔧', label: 'Persiapan' },
+                    { key: 'processing', icon: '📖', label: 'Baca Teks' },
+                    { key: 'parsing', icon: '🏦', label: 'Analisa' },
+                    { key: 'complete', icon: '✅', label: 'Selesai' }
+                  ].map((step, index) => (
+                    <div key={step.key} className="text-center">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center mx-auto mb-1 ${
+                        extractionProgress.percentage > (index * 20) ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400'
+                      }`}>
+                        <span className="text-sm">{step.icon}</span>
+                      </div>
+                      <span className={`${
+                        extractionProgress.percentage > (index * 20) ? 'text-blue-600' : 'text-gray-400'
+                      }`}>
+                        {step.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Periksa Data Transfer</h2>
+                    <p className="text-gray-600">Cek dan ubah data yang sudah dibaca dari foto</p>
+                  </div>
+                  <button
+                    onClick={handleBack}
+                    className="px-4 py-2 text-blue-600 hover:text-blue-700 font-medium"
+                  >
+                    ← Kembali
+                  </button>
+                </div>
+                <TransferForm
+                  initialData={transferData}
+                  uploadedImage={uploadedImage}
+                  onSubmit={handleFormSubmit}
+                />
+              </>
+            )}
+          </div>
+        )}
+
         {step === 'preview' && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -487,7 +597,13 @@ function App() {
                   onClick={handleBack}
                   className="px-4 py-2 text-blue-600 hover:text-blue-700 font-medium"
                 >
-                  ← Edit Data
+                  ← Ubah
+                </button>
+                <button
+                  onClick={handleNewReceipt}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium"
+                >
+                  Buat Baru
                 </button>
               </div>
             </div>

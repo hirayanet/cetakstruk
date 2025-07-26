@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { Upload, FileImage, Camera } from 'lucide-react';
+import { BankType } from '../types/TransferData';
 
 interface ImageUploaderProps {
   onImageUpload: (imageUrl: string) => void;
@@ -41,13 +42,16 @@ export default function ImageUploader({ onImageUpload, selectedBank }: ImageUplo
 
   const processImage = (file: File) => {
     setIsProcessing(true);
-    
+
     const reader = new FileReader();
     reader.onload = async (e) => {
       const imageUrl = e.target?.result as string;
-      
+
       console.log('📤 Image processed, calling onImageUpload...');
-      
+
+      // Small delay to show upload processing
+      await new Promise(resolve => setTimeout(resolve, 800));
+
       // Langsung panggil onImageUpload, biar OCR jalan di background
       setIsProcessing(false);
       onImageUpload(imageUrl);
@@ -59,11 +63,17 @@ export default function ImageUploader({ onImageUpload, selectedBank }: ImageUplo
     return (
       <div className="bg-white rounded-2xl shadow-lg p-8">
         <div className="text-center">
-          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-8 h-8 border-4 border-green-600 border-t-transparent rounded-full animate-spin"></div>
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Sedang Membaca Foto...</h3>
-          <p className="text-gray-600">Mengambil data dari struk transfer</p>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Upload Berhasil!</h3>
+          <p className="text-gray-600 mb-4">Foto sedang diproses...</p>
+
+          {/* Progress indicator */}
+          <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span>Mempersiapkan untuk ekstraksi data</span>
+          </div>
         </div>
       </div>
     );
@@ -82,6 +92,44 @@ export default function ImageUploader({ onImageUpload, selectedBank }: ImageUplo
           </div>
         </div>
       )}
+
+      {/* Tips untuk foto berkualitas */}
+      <div className="mb-6 p-4 bg-green-50 rounded-lg border border-green-200">
+        <h4 className="font-semibold text-green-900 mb-3 flex items-center">
+          <span className="text-lg mr-2">💡</span>
+          Tips Foto Terbaik untuk Akurasi Maksimal
+        </h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+          <div className="space-y-2">
+            <div className="flex items-center text-green-800">
+              <span className="mr-2">✅</span>
+              <span>Pencahayaan cukup terang</span>
+            </div>
+            <div className="flex items-center text-green-800">
+              <span className="mr-2">✅</span>
+              <span>Foto tegak lurus (tidak miring)</span>
+            </div>
+            <div className="flex items-center text-green-800">
+              <span className="mr-2">✅</span>
+              <span>Jarak 15-20cm dari struk</span>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center text-red-600">
+              <span className="mr-2">❌</span>
+              <span>Hindari bayangan atau pantulan</span>
+            </div>
+            <div className="flex items-center text-red-600">
+              <span className="mr-2">❌</span>
+              <span>Jangan terlalu dekat/jauh</span>
+            </div>
+            <div className="flex items-center text-red-600">
+              <span className="mr-2">❌</span>
+              <span>Hindari foto blur atau goyang</span>
+            </div>
+          </div>
+        </div>
+      </div>
       
       <div
         className={`border-2 border-dashed rounded-xl p-8 text-center transition-all duration-200 ${

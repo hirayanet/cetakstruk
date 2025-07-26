@@ -1,15 +1,24 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Printer, Download, CheckCircle, Share2 } from 'lucide-react';
 import { TransferData } from '../types/TransferData';
 import { uploadReceiptToCloudinary, generateFileName } from '../utils/cloudinaryUpload';
+import { autoSaveAccountMapping } from '../utils/realOCR';
 
 interface ReceiptPreviewProps {
   transferData: TransferData;
 }
 
 export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
+  const [autoSaveMessage, setAutoSaveMessage] = useState<string>('');
+
   const formatNumber = (num: number) => {
     return new Intl.NumberFormat('id-ID').format(num);
+  };
+
+  // Helper function untuk menampilkan notifikasi auto-save
+  const showAutoSaveNotification = (name: string, account: string) => {
+    setAutoSaveMessage(`✅ Mapping tersimpan: ${name} → ${account}`);
+    setTimeout(() => setAutoSaveMessage(''), 3000); // Hilang setelah 3 detik
   };
 
   const formatReferenceNumber = (refNumber: string) => {
@@ -56,15 +65,27 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
 
   const handlePrint = () => {
     try {
+      // Auto-save mapping sebelum print
+      if (transferData.receiverName && transferData.receiverAccount) {
+        const saved = autoSaveAccountMapping(transferData.receiverName, transferData.receiverAccount);
+        if (saved) {
+          console.log('💾 Auto-saved mapping before print:', {
+            name: transferData.receiverName,
+            account: transferData.receiverAccount
+          });
+          showAutoSaveNotification(transferData.receiverName, transferData.receiverAccount);
+        }
+      }
+
       // Add print class berdasarkan paper size
       document.body.classList.add('printing');
       if (transferData.paperSize === '58mm') {
         document.body.classList.add('printing-58mm');
       }
-      
+
       setTimeout(() => {
         window.print();
-        
+
         // Remove print class after printing
         setTimeout(() => {
           document.body.classList.remove('printing', 'printing-58mm');
@@ -79,6 +100,18 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
 
   const handleDownloadPDF = async () => {
     try {
+      // Auto-save mapping sebelum download PDF
+      if (transferData.receiverName && transferData.receiverAccount) {
+        const saved = autoSaveAccountMapping(transferData.receiverName, transferData.receiverAccount);
+        if (saved) {
+          console.log('💾 Auto-saved mapping before PDF download:', {
+            name: transferData.receiverName,
+            account: transferData.receiverAccount
+          });
+          showAutoSaveNotification(transferData.receiverName, transferData.receiverAccount);
+        }
+      }
+
       const html2canvas = (await import('html2canvas')).default;
       const jsPDF = (await import('jspdf')).default;
       
@@ -126,8 +159,20 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
 
   const handleShareWhatsApp = async () => {
     try {
+      // Auto-save mapping sebelum share WhatsApp
+      if (transferData.receiverName && transferData.receiverAccount) {
+        const saved = autoSaveAccountMapping(transferData.receiverName, transferData.receiverAccount);
+        if (saved) {
+          console.log('💾 Auto-saved mapping before WhatsApp share:', {
+            name: transferData.receiverName,
+            account: transferData.receiverAccount
+          });
+          showAutoSaveNotification(transferData.receiverName, transferData.receiverAccount);
+        }
+      }
+
       console.log('🚀 Starting WhatsApp share process...');
-      
+
       const html2canvas = (await import('html2canvas')).default;
       
       const receiptElement = document.querySelector('.receipt-content') as HTMLElement;
@@ -203,6 +248,13 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
 
   return (
     <div className="space-y-6">
+      {/* Auto-save notification */}
+      {autoSaveMessage && (
+        <div className="fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 animate-pulse">
+          {autoSaveMessage}
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-4 justify-center">
         <button
           onClick={handlePrint}

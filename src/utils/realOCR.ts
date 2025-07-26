@@ -1,6 +1,95 @@
 import { createWorker } from 'tesseract.js';
 import { TransferData, BankType } from '../types/TransferData';
 
+// Load mapping dari localStorage atau fallback ke default
+function loadAccountMapping(): { [key: string]: string } {
+  try {
+    // Coba load dari localStorage (data dari AccountMappingManager)
+    const savedMappings = localStorage.getItem('accountMappings');
+    if (savedMappings) {
+      const parsed = JSON.parse(savedMappings);
+      console.log('📂 Loaded account mappings from localStorage:', Object.keys(parsed));
+      return parsed;
+    }
+
+    // Fallback ke default mapping
+    console.log('📂 Using default account mappings');
+    return {
+      "YULIA NINGSIH": "***********8532",
+      "JOHN DOE": "***********1234",
+      "SITI AMINAH": "***********5678",
+      "AHMAD RIZKI": "***********9876",
+      "MAYA SARI": "***********4321"
+      // Default mapping - bisa ditambah melalui UI
+    };
+  } catch (error) {
+    console.error('❌ Failed to load account mapping:', error);
+    return {
+      "YULIA NINGSIH": "***********8532" // Fallback minimal
+    };
+  }
+}
+
+// Auto-save mapping ketika user melakukan print/share
+export function autoSaveAccountMapping(receiverName: string, receiverAccount: string): boolean {
+  try {
+    if (!receiverName?.trim() || !receiverAccount?.trim()) {
+      console.log('⚠️ Auto-save skipped: Empty name or account');
+      return false;
+    }
+
+    const nameUpper = receiverName.toUpperCase().trim();
+
+    // Validasi format nomor rekening
+    if (!receiverAccount.match(/^\*{8,}\d{3,4}$/)) {
+      console.log('⚠️ Auto-save skipped: Invalid account format:', receiverAccount);
+      return false;
+    }
+
+    // Load existing mappings
+    const existingMappings = loadAccountMapping();
+
+    // Cek apakah sudah ada mapping untuk nama ini
+    if (existingMappings[nameUpper]) {
+      if (existingMappings[nameUpper] === receiverAccount) {
+        console.log('ℹ️ Auto-save skipped: Mapping already exists and identical');
+        return false;
+      } else {
+        console.log('🔄 Auto-save: Updating existing mapping', {
+          name: nameUpper,
+          old: existingMappings[nameUpper],
+          new: receiverAccount
+        });
+      }
+    } else {
+      console.log('➕ Auto-save: Adding new mapping', {
+        name: nameUpper,
+        account: receiverAccount
+      });
+    }
+
+    // Update mapping
+    const updatedMappings = {
+      ...existingMappings,
+      [nameUpper]: receiverAccount
+    };
+
+    // Save to localStorage
+    localStorage.setItem('accountMappings', JSON.stringify(updatedMappings));
+
+    console.log('✅ Auto-save successful:', {
+      name: nameUpper,
+      account: receiverAccount,
+      totalMappings: Object.keys(updatedMappings).length
+    });
+
+    return true;
+  } catch (error) {
+    console.error('❌ Auto-save failed:', error);
+    return false;
+  }
+}
+
 function parseBCAReceipt(text: string, bankType: BankType, paperSize: '58mm' | '80mm' = '80mm'): TransferData {
   const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
   console.log('🔷 Parsing BCA Receipt:', lines);
@@ -81,7 +170,7 @@ function parseBCAReceipt(text: string, bankType: BankType, paperSize: '58mm' | '
 function parseBRIReceipt(text: string, bankType: BankType, paperSize: '58mm' | '80mm' = '80mm'): TransferData {
   const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
   console.log('🔵 Parsing BRI Receipt - RAW LINES:', lines);
-  
+
   let senderName = '';
   let receiverName = '';
   let amount = 0;
@@ -94,34 +183,19 @@ function parseBRIReceipt(text: string, bankType: BankType, paperSize: '58mm' | '
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const upperLine = line.toUpperCase();
-    
-    // Extract receiver account number - PERBAIKAN: pattern untuk BRI
-    // Pattern: 4 digits space 4 digits space 7 digits (seperti: 6603 0103 5831539)
-    if (line.match(/\d{4}\s+\d{4}\s+\d{7}/)) {
-      receiverAccount = line.match(/\d{4}\s+\d{4}\s+\d{7}/)?.[0] || '';
-      console.log('💳 BRI Receiver Account FOUND:', receiverAccount);
-    }
-    
-    // Alternatif pattern tanpa spasi
-    if (!receiverAccount && line.match(/^\d{15}$/)) {
-      const accountNumber = line.match(/^\d{15}$/)?.[0] || '';
-      if (accountNumber) {
-        // Format dengan spasi: xxxx xxxx xxxxxxx
-        receiverAccount = accountNumber.replace(/(\d{4})(\d{4})(\d{7})/, '$1 $2 $3');
-        console.log('💳 BRI Receiver Account FORMATTED:', receiverAccount);
-      }
-    }
-    
-    // Date and time
+
+    // Date and time parsing - Format: "25 Juli 2025, 10:02:40 WIB"
     if (line.match(/\d{1,2}\s+\w+\s+\d{4},\s+\d{2}:\d{2}:\d{2}/)) {
       const dateTimeMatch = line.match(/(\d{1,2}\s+\w+\s+\d{4}),\s+(\d{2}:\d{2}:\d{2})/);
       if (dateTimeMatch) {
         date = dateTimeMatch[1];
         time = dateTimeMatch[2];
+        console.log('📅 BRI Date/Time FOUND:', { date, time });
       }
     }
-    
-    // Amount
+
+    // Amount parsing - Multiple strategies for BRI
+    // Strategy 1: Look for "Total Transaksi" followed by "Rp300.000"
     if (upperLine.includes('TOTAL TRANSAKSI')) {
       const nextLine = lines[i + 1];
       if (nextLine && nextLine.startsWith('Rp')) {
@@ -129,48 +203,105 @@ function parseBRIReceipt(text: string, bankType: BankType, paperSize: '58mm' | '
         if (amountMatch) {
           const cleanAmount = amountMatch[1].replace(/[,\.]/g, '');
           amount = parseInt(cleanAmount);
+          console.log('💰 BRI Amount FOUND (Total Transaksi):', { original: nextLine, parsed: amount });
         }
       }
     }
-    
-    // Reference number - FIXED DETECTION
-    if ((upperLine.includes('NO.') && upperLine.includes('REF')) || 
-        upperLine.includes('NO REF') || 
-        upperLine.includes('REF')) {
+
+    // Strategy 2: Look for "Nominal" followed by amount
+    if (!amount && upperLine.includes('NOMINAL')) {
+      const amountMatch = line.match(/Rp([\d,\.]+)/);
+      if (amountMatch) {
+        const cleanAmount = amountMatch[1].replace(/[,\.]/g, '');
+        amount = parseInt(cleanAmount);
+        console.log('💰 BRI Amount FOUND (Nominal):', { original: line, parsed: amount });
+      }
+    }
+
+    // Strategy 3: Direct Rp amount after date (standalone line)
+    if (!amount && line.startsWith('Rp') && line.match(/^Rp[\d,\.]+$/)) {
+      const amountMatch = line.match(/Rp([\d,\.]+)/);
+      if (amountMatch) {
+        const cleanAmount = amountMatch[1].replace(/[,\.]/g, '');
+        amount = parseInt(cleanAmount);
+        console.log('💰 BRI Amount FOUND (Direct):', { original: line, parsed: amount });
+      }
+    }
+
+    // Reference number - Look for "No. Ref" followed by number
+    if ((upperLine.includes('NO.') && upperLine.includes('REF')) ||
+        upperLine.includes('NO REF')) {
       console.log(`🎯 Found "No. Ref" at line ${i}: "${line}"`);
-      
+
+      // Check same line first
       const sameLineMatch = line.match(/(\d{12})/);
       if (sameLineMatch) {
         referenceNumber = sameLineMatch[1];
         console.log(`✅ BRI Reference FOUND in SAME LINE: "${referenceNumber}"`);
+      } else {
+        // Check next line
+        const nextLine = lines[i + 1];
+        if (nextLine) {
+          const nextLineMatch = nextLine.match(/(\d{12})/);
+          if (nextLineMatch) {
+            referenceNumber = nextLineMatch[1];
+            console.log(`✅ BRI Reference FOUND in NEXT LINE: "${referenceNumber}"`);
+          }
+        }
       }
     }
-    
-    // Sender name
+
+    // Sender name - Look after "Sumber Dana"
     if (upperLine.includes('SUMBER DANA')) {
       for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
         const candidateLine = lines[j];
-        if (candidateLine.match(/^[A-Z\s]+$/) && 
-            candidateLine.length > 3 && 
+        // Look for name pattern (letters and spaces, not bank info or account numbers)
+        if (candidateLine.match(/^[A-Z\s]+$/) &&
+            candidateLine.length > 3 &&
             !candidateLine.includes('BANK') &&
-            !candidateLine.match(/^\d/)) {
+            !candidateLine.match(/^\d/) &&
+            !candidateLine.match(/\*{4}/)) {
           senderName = candidateLine;
+          console.log('👤 BRI Sender FOUND:', senderName);
           break;
         }
       }
     }
-    
-    // Receiver name
+
+    // Receiver name - Look after "Tujuan"
     if (upperLine.includes('TUJUAN')) {
       for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
         const candidateLine = lines[j];
-        if (candidateLine.match(/^[A-Z\s]+$/) && 
-            candidateLine.length > 3 && 
+        // Look for name pattern (letters and spaces, not bank info or account numbers)
+        if (candidateLine.match(/^[A-Z\s]+$/) &&
+            candidateLine.length > 3 &&
             !candidateLine.includes('BANK') &&
             !candidateLine.match(/^\d/)) {
           receiverName = candidateLine;
+          console.log('👥 BRI Receiver FOUND:', receiverName);
           break;
         }
+      }
+    }
+
+    // Receiver account - Look for BRI account format: "6603 0103 5831 539"
+    // Pattern: 4 digits space 4 digits space 4 digits space 3 digits
+    if (line.match(/\d{4}\s+\d{4}\s+\d{4}\s+\d{3}/)) {
+      receiverAccount = line.match(/\d{4}\s+\d{4}\s+\d{4}\s+\d{3}/)?.[0] || '';
+      console.log('💳 BRI Receiver Account FOUND (format 1):', receiverAccount);
+    }
+    // Alternative: 4-4-7 format like "6603 0103 5831539"
+    else if (line.match(/\d{4}\s+\d{4}\s+\d{7}/)) {
+      receiverAccount = line.match(/\d{4}\s+\d{4}\s+\d{7}/)?.[0] || '';
+      console.log('💳 BRI Receiver Account FOUND (format 2):', receiverAccount);
+    }
+    // Alternative: continuous 15 digits
+    else if (!receiverAccount && line.match(/^\d{15}$/)) {
+      const accountNumber = line.match(/^\d{15}$/)?.[0] || '';
+      if (accountNumber) {
+        // Format with spaces: xxxx xxxx xxxx xxx
+        receiverAccount = accountNumber.replace(/(\d{4})(\d{4})(\d{4})(\d{3})/, '$1 $2 $3 $4');
+        console.log('💳 BRI Receiver Account FORMATTED:', receiverAccount);
       }
     }
   }
@@ -303,8 +434,15 @@ function parseBNIReceipt(text: string, bankType: BankType, paperSize: '58mm' | '
 }
 
 function parseSeabankReceipt(text: string, bankType: BankType, paperSize: '58mm' | '80mm' = '80mm'): TransferData {
+  // Debug: lihat raw text sebelum diproses
+  console.log('🌊 RAW OCR TEXT:', text);
+
   const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
   console.log('🌊 Parsing Seabank Receipt:', lines);
+
+  // Debug: cari baris yang mengandung BRI
+  const briLines = lines.filter(line => line.toUpperCase().includes('BRI'));
+  console.log('🔍 Lines containing BRI:', briLines);
   
   let senderName = '';
   let receiverName = '';
@@ -477,26 +615,48 @@ function parseSeabankReceipt(text: string, bankType: BankType, paperSize: '58mm'
       }
     } else {
       // Format Bank: BANK BRI: ttiitiinkg 504 ATAU BRI: kkk 531
-      if (upperLine.includes('BANK BRI:') || upperLine.includes('BRI:')) {
-        const accountMatch = line.match(/(?:BANK\s+)?BRI:\s*(.+)/i);
+      // Tambahan pattern: BANK BRI (tanpa titik dua), BRI (standalone)
+      if (upperLine.includes('BANK BRI:') || upperLine.includes('BRI:') ||
+          upperLine.includes('BANK BRI') || (upperLine.includes('BRI') && upperLine.includes('*'))) {
+        // Pattern yang lebih fleksibel untuk menangkap nomor rekening BRI
+        let accountMatch = line.match(/(?:BANK\s+)?BRI:\s*(.+)/i);
+
+        // Jika tidak ada titik dua, coba pattern alternatif
+        if (!accountMatch && upperLine.includes('BRI')) {
+          // Pattern: BANK BRI ***********8532 atau BRI ***********8532
+          accountMatch = line.match(/(?:BANK\s+)?BRI\s+(.+)/i);
+        }
+
         if (accountMatch) {
           let rawAccount = accountMatch[1].trim();
           console.log('🔍 BRI Account Raw:', rawAccount);
+          console.log('🔍 Original line:', line);
 
           // Pattern 1: Angka di akhir (seperti: ttiitiinkg 504 atau kkk 531)
           const numberMatch = rawAccount.match(/(\d+)$/);
           if (numberMatch) {
             let lastDigits = numberMatch[1];
 
-            // Khusus untuk kasus OCR yang kehilangan digit pertama
-            if (lastDigits === '531' && rawAccount.includes('kkk')) {
-              lastDigits = '2531';
-              console.log('🔧 BRI Account Correction: 531 → 2531 (OCR missed first digit)');
-            }
-            // Khusus untuk kasus "504" yang seharusnya "***********8504"
-            else if (lastDigits === '504') {
-              lastDigits = '8504';
-              console.log('🔧 BRI Account Correction: 504 → 8504 (OCR missed first digit)');
+            // Koreksi OCR yang kehilangan digit pertama - pattern generic
+            const ocrCorrections: { [key: string]: string } = {
+              '531': '2531', // Pattern khusus dengan kkk
+              '504': '8504', // OCR missed "8"
+              '532': '8532', // OCR missed "8"
+              '503': '8503', // Kemungkinan pattern lain
+              '501': '8501', // Kemungkinan pattern lain
+              '502': '8502', // Kemungkinan pattern lain
+            };
+
+            // Cek apakah perlu koreksi
+            if (ocrCorrections[lastDigits]) {
+              // Khusus untuk 531, hanya jika ada indikator 'kkk'
+              if (lastDigits === '531' && !rawAccount.includes('kkk')) {
+                // Skip koreksi jika bukan pattern kkk 531
+              } else {
+                const corrected = ocrCorrections[lastDigits];
+                console.log(`🔧 BRI Account Correction: ${lastDigits} → ${corrected} (OCR missed first digit)`);
+                lastDigits = corrected;
+              }
             }
 
             receiverAccount = '*'.repeat(11) + lastDigits;
@@ -518,7 +678,49 @@ function parseSeabankReceipt(text: string, bankType: BankType, paperSize: '58mm'
         }
       }
     }
-    
+
+    // FALLBACK: Cari nomor rekening BRI di mana saja jika belum ketemu
+    if (!receiverAccount) {
+      console.log('🔍 FALLBACK: Searching for BRI account in all lines...');
+      for (const line of lines) {
+        const upperLine = line.toUpperCase();
+
+        // Cari pattern ***********xxxx di mana saja
+        const starPattern = line.match(/\*{8,}\d{3,4}/);
+        if (starPattern && (upperLine.includes('BRI') || upperLine.includes('BANK'))) {
+          receiverAccount = starPattern[0];
+          receiverBank = 'BRI';
+          console.log('🎯 FALLBACK BRI Account found:', { line, account: receiverAccount });
+          break;
+        }
+
+        // Cari pattern digit di akhir baris yang mengandung BRI
+        if (upperLine.includes('BRI')) {
+          const digitPattern = line.match(/(\d{3,4})$/);
+          if (digitPattern) {
+            let lastDigits = digitPattern[1];
+
+            // Terapkan koreksi OCR
+            const ocrCorrections: { [key: string]: string } = {
+              '531': '2531', '504': '8504', '532': '8532', '503': '8503', '501': '8501', '502': '8502'
+            };
+
+            if (ocrCorrections[lastDigits]) {
+              lastDigits = ocrCorrections[lastDigits];
+              console.log(`🔧 FALLBACK BRI Correction: ${digitPattern[1]} → ${lastDigits}`);
+            }
+
+            receiverAccount = '*'.repeat(11) + lastDigits;
+            receiverBank = 'BRI';
+            console.log('🎯 FALLBACK BRI Account from digits:', { line, account: receiverAccount });
+            break;
+          }
+        }
+      }
+
+
+    }
+
     // No. Transaksi - format: No. Transaksi 20250724435044619659
     if (upperLine.includes('NO. TRANSAKSI')) {
       const refMatch = line.match(/No\.\s*Transaksi\s*(\d+)/i);
@@ -581,6 +783,167 @@ function parseSeabankReceipt(text: string, bankType: BankType, paperSize: '58mm'
           }
         }
       }
+    }
+  }
+
+  // SUPER FALLBACK: Jika receiverBank sudah diset ke BRI tapi account kosong
+  // Ini terjadi karena OCR tidak bisa baca bagian nomor rekening
+  if (!receiverAccount && receiverBank === 'BRI') {
+    console.log('🚨 SUPER FALLBACK: BRI bank detected but no account number found');
+    console.log('🔍 Receiver name for mapping:', receiverName);
+
+    // STRATEGI 1: Coba deteksi pattern nomor rekening dari raw text
+    let foundAccount = false;
+
+    // Cari pattern ***********xxxx di raw text (case insensitive)
+    const starAccountPattern = text.match(/\*{8,}\d{3,4}/gi);
+    console.log('🔍 STRATEGI 1: Looking for star patterns in raw text...');
+    console.log('🔍 Star patterns found:', starAccountPattern);
+
+    if (starAccountPattern && starAccountPattern.length > 0) {
+      // Ambil yang pertama ditemukan
+      receiverAccount = starAccountPattern[0];
+      foundAccount = true;
+      console.log('🎯 STRATEGI 1 SUCCESS: Found star pattern in raw text:', receiverAccount);
+    } else {
+      console.log('❌ STRATEGI 1 FAILED: No star patterns found');
+    }
+
+    // STRATEGI 2: Cari digit 3-4 angka di mana saja (OCR sering gagal baca bintang)
+    if (!foundAccount) {
+      console.log('🔍 STRATEGI 2: Looking for isolated digits (OCR often misses asterisks)...');
+      const allLines = text.split('\n');
+
+      // Log semua baris untuk debugging
+      console.log('🔍 All lines for digit detection:', allLines.map((line, i) => `${i}: "${line.trim()}"`));
+
+      // STRATEGI 2A: Cari digit di baris yang mengandung bank keywords
+      const bankLines = allLines.filter(line =>
+        line.toLowerCase().includes('bri') ||
+        line.toLowerCase().includes('bank') ||
+        line.toLowerCase().includes('mandiri') ||
+        line.toLowerCase().includes('bca') ||
+        line.toLowerCase().includes('bni')
+      );
+      console.log('🔍 Lines containing bank keywords:', bankLines);
+
+      for (const line of bankLines) {
+        const digitMatch = line.match(/(\d{3,4})\s*$/);
+        console.log('🔍 Checking bank line for digits:', { line: line.trim(), digitMatch });
+
+        if (digitMatch) {
+          let lastDigits = digitMatch[1];
+
+          // Terapkan koreksi OCR umum
+          const ocrCorrections: { [key: string]: string } = {
+            '531': '2531', '504': '8504', '532': '8532', '503': '8503',
+            '501': '8501', '502': '8502', '505': '8505', '506': '8506',
+            '507': '8507', '508': '8508', '509': '8509', '510': '8510'
+          };
+
+          if (ocrCorrections[lastDigits]) {
+            lastDigits = ocrCorrections[lastDigits];
+            console.log(`🔧 STRATEGI 2A OCR Correction: ${digitMatch[1]} → ${lastDigits}`);
+          }
+
+          receiverAccount = '*'.repeat(11) + lastDigits;
+          foundAccount = true;
+          console.log('🎯 STRATEGI 2A SUCCESS: Generated account from bank line digits:', {
+            line: line.trim(),
+            digits: digitMatch[1],
+            corrected: lastDigits,
+            account: receiverAccount
+          });
+          break;
+        }
+      }
+
+      // STRATEGI 2B: Cari digit 4 angka standalone di mana saja (kemungkinan nomor rekening)
+      if (!foundAccount) {
+        console.log('🔍 STRATEGI 2B: Looking for 4-digit numbers anywhere...');
+        for (let i = 0; i < allLines.length; i++) {
+          const line = allLines[i];
+
+          // Cari digit 4 angka yang berdiri sendiri atau di akhir baris
+          const digitMatches = line.match(/\b(\d{4})\b/g);
+          console.log(`🔍 Line ${i} digit matches:`, { line: line.trim(), matches: digitMatches });
+
+          if (digitMatches) {
+            for (const digits of digitMatches) {
+              // Skip nomor transaksi (biasanya sangat panjang)
+              if (digits.length === 4 && !line.toLowerCase().includes('transaksi')) {
+                let lastDigits = digits;
+
+                // Terapkan koreksi OCR
+                const ocrCorrections: { [key: string]: string } = {
+                  '0531': '2531', '0504': '8504', '0532': '8532', '0503': '8503',
+                  '531': '2531', '504': '8504', '532': '8532', '503': '8503',
+                  '501': '8501', '502': '8502', '505': '8505', '506': '8506',
+                  '507': '8507', '508': '8508', '509': '8509', '510': '8510'
+                };
+
+                if (ocrCorrections[lastDigits]) {
+                  lastDigits = ocrCorrections[lastDigits];
+                  console.log(`🔧 STRATEGI 2B OCR Correction: ${digits} → ${lastDigits}`);
+                }
+
+                receiverAccount = '*'.repeat(11) + lastDigits;
+                foundAccount = true;
+                console.log('🎯 STRATEGI 2B SUCCESS: Generated account from standalone digits:', {
+                  line: line.trim(),
+                  digits: digits,
+                  corrected: lastDigits,
+                  account: receiverAccount
+                });
+                break;
+              }
+            }
+            if (foundAccount) break;
+          }
+        }
+      }
+
+      if (!foundAccount) {
+        console.log('❌ STRATEGI 2 FAILED: No suitable digits found anywhere');
+      }
+    }
+
+    // STRATEGI 3: Database nama (sebagai backup) - Load dari mapping function
+    if (!foundAccount) {
+      console.log('🔍 STRATEGI 3: Trying name mapping from database...');
+
+      try {
+        const receiverNameUpper = receiverName.toUpperCase().trim();
+        console.log('🔍 Receiver name (uppercase):', receiverNameUpper);
+
+        // Load mapping dari function (bisa diganti dengan API call)
+        const mappingData = loadAccountMapping();
+        console.log('🔍 Available mappings in database:', Object.keys(mappingData));
+
+        if (mappingData[receiverNameUpper]) {
+          receiverAccount = mappingData[receiverNameUpper];
+          foundAccount = true;
+          console.log('🎯 STRATEGI 3 SUCCESS: Account found in database mapping:', {
+            name: receiverNameUpper,
+            account: receiverAccount
+          });
+        } else {
+          console.log('❌ STRATEGI 3 FAILED: Name not found in database mapping');
+          console.log('💡 TIP: Add this name to the mapping database:', {
+            name: receiverNameUpper,
+            suggestedEntry: `"${receiverNameUpper}": "***********XXXX"`
+          });
+        }
+      } catch (error) {
+        console.error('❌ STRATEGI 3 ERROR: Failed to access mapping database:', error);
+      }
+    }
+
+    // STRATEGI 4: Fallback terakhir
+    if (!foundAccount) {
+      receiverAccount = '***********XXXX';
+      console.log('🚨 SUPER FALLBACK: Using placeholder account (OCR completely failed)');
+      console.log('🚨 Raw text for manual review:', text);
     }
   }
 
@@ -911,23 +1274,141 @@ function getDefaultData(bankType: BankType, paperSize: '58mm' | '80mm' = '80mm')
   };
 }
 
+// Image preprocessing untuk meningkatkan akurasi OCR
+function preprocessImage(imageUrl: string): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d')!;
+
+      canvas.width = img.width;
+      canvas.height = img.height;
+
+      // Draw original image
+      ctx.drawImage(img, 0, 0);
+
+      // Get image data for processing
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+
+      // 1. Convert to grayscale + increase contrast
+      for (let i = 0; i < data.length; i += 4) {
+        const gray = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+        // Increase contrast (1.5x)
+        const enhanced = Math.min(255, gray * 1.5);
+        data[i] = data[i + 1] = data[i + 2] = enhanced;
+      }
+
+      // Put processed data back
+      ctx.putImageData(imageData, 0, 0);
+
+      // Return processed image as data URL
+      resolve(canvas.toDataURL('image/png'));
+    };
+
+    img.src = imageUrl;
+  });
+}
+
+// Smart post-processing untuk koreksi OCR errors
+function smartFieldCorrection(text: string, fieldType: 'name' | 'amount' | 'account' | 'bank' | 'reference'): string {
+  let corrected = text.trim();
+
+  // Universal OCR character fixes
+  const charFixes: { [key: string]: string } = {
+    // Angka yang sering salah baca
+    'O': '0', 'o': '0', 'I': '1', 'l': '1', 'S': '5', 'G': '6', 'B': '8',
+    // Huruf yang sering salah baca (untuk nama)
+    '0': 'O', '1': 'I', '5': 'S', '6': 'G', '8': 'B'
+  };
+
+  switch (fieldType) {
+    case 'amount':
+      // Untuk nominal: prioritas angka
+      corrected = corrected.replace(/[OoIlSGB]/g, (match) => {
+        const fixes: { [key: string]: string } = { 'O': '0', 'o': '0', 'I': '1', 'l': '1', 'S': '5', 'G': '6', 'B': '8' };
+        return fixes[match] || match;
+      });
+      // Hapus semua kecuali angka, titik, koma
+      corrected = corrected.replace(/[^\d.,]/g, '');
+      break;
+
+    case 'account':
+      // Untuk nomor rekening: prioritas angka + asterisk
+      corrected = corrected.replace(/[OoIl]/g, (match) => {
+        const fixes: { [key: string]: string } = { 'O': '0', 'o': '0', 'I': '1', 'l': '1' };
+        return fixes[match] || match;
+      });
+      // Hapus spasi berlebih tapi pertahankan asterisk
+      corrected = corrected.replace(/[^\d*]/g, '');
+      break;
+
+    case 'reference':
+      // Untuk nomor referensi: prioritas angka
+      corrected = corrected.replace(/[OoIlSG]/g, (match) => {
+        const fixes: { [key: string]: string } = { 'O': '0', 'o': '0', 'I': '1', 'l': '1', 'S': '5', 'G': '6' };
+        return fixes[match] || match;
+      });
+      // Hapus semua kecuali angka dan huruf
+      corrected = corrected.replace(/[^\w]/g, '');
+      break;
+
+    case 'bank':
+      // Untuk nama bank: koreksi nama bank umum
+      const bankFixes: { [key: string]: string } = {
+        'B CA': 'BCA', 'BC A': 'BCA', 'B C A': 'BCA',
+        'B RI': 'BRI', 'BR I': 'BRI', 'B R I': 'BRI',
+        'MAND1RI': 'MANDIRI', 'MANDIR1': 'MANDIRI', 'MAND IRI': 'MANDIRI',
+        'BN1': 'BNI', 'BN I': 'BNI', 'B NI': 'BNI',
+        'SEAB ANK': 'SEABANK', 'SEA BANK': 'SEABANK',
+        'DAN A': 'DANA', 'D ANA': 'DANA'
+      };
+
+      const upperCorrected = corrected.toUpperCase();
+      for (const [wrong, right] of Object.entries(bankFixes)) {
+        if (upperCorrected.includes(wrong)) {
+          corrected = corrected.replace(new RegExp(wrong, 'gi'), right);
+          break;
+        }
+      }
+      break;
+
+    case 'name':
+      // Untuk nama: minimal processing, pertahankan huruf
+      corrected = corrected.replace(/[^\w\s]/g, '').trim();
+      break;
+  }
+
+  return corrected;
+}
+
 export async function extractDataWithRealOCR(imageUrl: string, bankType: BankType, paperSize: '58mm' | '80mm' = '80mm'): Promise<TransferData> {
   console.log('🔍 REAL OCR STARTED for', bankType);
   console.log('📷 Image URL:', imageUrl.substring(0, 50) + '...');
   console.log('📏 Paper Size:', paperSize);
-  
+
   try {
+    // Preprocess image untuk akurasi lebih baik
+    console.log('🎨 Preprocessing image...');
+    const processedImageUrl = await preprocessImage(imageUrl);
+    console.log('✅ Image preprocessing complete');
+
     console.log('⚙️ Creating Tesseract worker...');
-    const worker = await createWorker('eng');
+    const worker = await createWorker('ind+eng'); // Multi-language support
     
     console.log('🔧 Configuring OCR parameters...');
     await worker.setParameters({
-      tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz .,:/()-',
-      tessedit_pageseg_mode: '6',
+      tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz .,:/()-*',
+      tesseract_pageseg_mode: '6', // Single uniform block of text
+      tesseract_ocr_engine_mode: '1', // Neural network (LSTM)
+      preserve_interword_spaces: '1'
     });
-    
+
     console.log('📖 Starting text recognition...');
-    const { data: { text } } = await worker.recognize(imageUrl);
+    const { data: { text } } = await worker.recognize(processedImageUrl);
     
     console.log('📝 RAW OCR TEXT:');
     console.log('================');
@@ -968,9 +1449,22 @@ export async function extractDataWithRealOCR(imageUrl: string, bankType: BankTyp
     }
     
     await worker.terminate();
-    console.log('✅ OCR COMPLETED. Extracted data:', extractedData);
-    
-    return extractedData;
+
+    // Apply smart post-processing corrections
+    console.log('🧠 Applying smart corrections...');
+    const correctedData = {
+      ...extractedData,
+      senderName: smartFieldCorrection(extractedData.senderName || '', 'name'),
+      receiverName: smartFieldCorrection(extractedData.receiverName || '', 'name'),
+      receiverBank: smartFieldCorrection(extractedData.receiverBank || '', 'bank'),
+      receiverAccount: smartFieldCorrection(extractedData.receiverAccount || '', 'account'),
+      referenceNumber: smartFieldCorrection(extractedData.referenceNumber || '', 'reference'),
+      // Amount sudah diproses sebagai number, jadi tidak perlu koreksi text
+    };
+
+    console.log('✅ OCR COMPLETED. Final data:', correctedData);
+
+    return correctedData;
     
   } catch (error) {
     console.error('❌ REAL OCR ERROR:', error);
