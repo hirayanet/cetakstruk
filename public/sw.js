@@ -169,8 +169,8 @@ self.addEventListener('push', (event) => {
   
   const options = {
     body: event.data ? event.data.text() : 'Ada update baru untuk aplikasi cetak struk!',
-    icon: '/icons/icon-192x192.svg',
-    badge: '/icons/icon-192x192.svg',
+    icon: '/icons/icon-192x192.png',
+    badge: '/icons/icon-192x192.png',
     vibrate: [200, 100, 200],
     data: {
       dateOfArrival: Date.now(),
@@ -180,12 +180,12 @@ self.addEventListener('push', (event) => {
       {
         action: 'explore',
         title: 'Buka Aplikasi',
-        icon: '/icons/icon-192x192.svg'
+        icon: '/icons/icon-192x192.png'
       },
       {
         action: 'close',
         title: 'Tutup',
-        icon: '/icons/icon-192x192.svg'
+        icon: '/icons/icon-192x192.png'
       }
     ]
   };

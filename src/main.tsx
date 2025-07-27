@@ -14,6 +14,13 @@ if ('serviceWorker' in navigator) {
 
       console.log('✅ PWA: Service Worker registered successfully', registration.scope);
 
+      // Debug PWA installability
+      console.log('🔍 PWA Debug Info:', {
+        userAgent: navigator.userAgent,
+        standalone: window.matchMedia('(display-mode: standalone)').matches,
+        beforeinstallprompt: 'onbeforeinstallprompt' in window
+      });
+
       // Listen for updates
       registration.addEventListener('updatefound', () => {
         console.log('🔄 PWA: Service Worker update found');

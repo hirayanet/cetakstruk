@@ -12,54 +12,28 @@
   "categories": ["business", "finance", "productivity"],
   "icons": [
     {
-      "src": "/icons/icon-192x192.svg",
+      "src": "/icons/icon-192x192.png",
       "sizes": "192x192",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "/icons/icon-512x512.svg",
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
-    }
-  ],
-  "shortcuts": [
-    {
-      "name": "Upload Struk BCA",
-      "short_name": "BCA",
-      "description": "Langsung upload struk BCA",
-      "url": "/?bank=BCA",
-      "icons": [
-        {
-          "src": "/icons/bca-shortcut.png",
-          "sizes": "96x96"
-        }
-      ]
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "name": "Upload Struk BRI",
-      "short_name": "BRI",
-      "description": "Langsung upload struk BRI",
-      "url": "/?bank=BRI",
-      "icons": [
-        {
-          "src": "/icons/bri-shortcut.png",
-          "sizes": "96x96"
-        }
-      ]
-    },
-    {
-      "name": "Kelola Mapping",
-      "short_name": "Mapping",
-      "description": "Kelola mapping nama ke nomor rekening",
-      "url": "/?action=mapping",
-      "icons": [
-        {
-          "src": "/icons/mapping-shortcut.png",
-          "sizes": "96x96"
-        }
-      ]
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
