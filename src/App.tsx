@@ -5,6 +5,7 @@ import TransferForm from './components/TransferForm';
 import ReceiptPreview from './components/ReceiptPreview';
 import LoginForm from './components/LoginForm';
 import AccountMappingManager from './components/AccountMappingManager';
+import PWAInstallPrompt from './components/PWAInstallPrompt';
 import { TransferData, BankType } from './types/TransferData';
 import { extractDataFromImage } from './utils/ocrSimulator';
 import { saveAuthData, loadAuthData, clearAuthData, saveAppState, loadAppState, clearAppState } from './utils/auth';
@@ -508,6 +509,9 @@ function App() {
 
       {/* Account Mapping Manager - hanya tampil untuk user yang login */}
       {isAuthenticated && <AccountMappingManager />}
+
+      {/* PWA Install Prompt */}
+      <PWAInstallPrompt />
     </div>
   );
 }

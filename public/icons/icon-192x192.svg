@@ -1,0 +1,17 @@
+<svg width="192" height="192" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="192" height="192" fill="#3b82f6"/>
+  
+  <!-- Receipt Icon -->
+  <rect x="48" y="32" width="96" height="128" fill="white" rx="8"/>
+  <rect x="56" y="48" width="80" height="4" fill="#3b82f6" rx="2"/>
+  <rect x="56" y="60" width="60" height="3" fill="#6b7280" rx="1.5"/>
+  <rect x="56" y="72" width="70" height="3" fill="#6b7280" rx="1.5"/>
+  <rect x="56" y="84" width="50" height="3" fill="#6b7280" rx="1.5"/>
+  <rect x="56" y="96" width="65" height="3" fill="#6b7280" rx="1.5"/>
+  <rect x="56" y="108" width="55" height="3" fill="#6b7280" rx="1.5"/>
+  <rect x="56" y="128" width="80" height="4" fill="#10b981" rx="2"/>
+  
+  <!-- HRY Text -->
+  <text x="96" y="180" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="16" font-weight="bold">HRY</text>
+</svg>

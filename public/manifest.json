@@ -1,0 +1,65 @@
+{
+  "name": "Cetak Struk Transfer - Jasa HRY",
+  "short_name": "Cetak Struk",
+  "description": "Aplikasi cetak struk transfer untuk semua bank - BCA, BRI, Mandiri, BNI, SeaBank, DANA",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "id",
+  "categories": ["business", "finance", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Upload Struk BCA",
+      "short_name": "BCA",
+      "description": "Langsung upload struk BCA",
+      "url": "/?bank=BCA",
+      "icons": [
+        {
+          "src": "/icons/bca-shortcut.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Upload Struk BRI",
+      "short_name": "BRI",
+      "description": "Langsung upload struk BRI",
+      "url": "/?bank=BRI",
+      "icons": [
+        {
+          "src": "/icons/bri-shortcut.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Kelola Mapping",
+      "short_name": "Mapping",
+      "description": "Kelola mapping nama ke nomor rekening",
+      "url": "/?action=mapping",
+      "icons": [
+        {
+          "src": "/icons/mapping-shortcut.png",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ]
+}
