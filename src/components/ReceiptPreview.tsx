@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Printer, Download, CheckCircle, Share2, ChevronDown, Copy, MessageCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Printer, Download, CheckCircle, Share2 } from 'lucide-react';
 import { TransferData } from '../types/TransferData';
 import { uploadReceiptToCloudinary, generateFileName } from '../utils/cloudinaryUpload';
 import { autoSaveAccountMapping } from '../utils/realOCR';
@@ -10,20 +10,6 @@ interface ReceiptPreviewProps {
 
 export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
   const [autoSaveMessage, setAutoSaveMessage] = useState<string>('');
-  const [showShareDropdown, setShowShareDropdown] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowShareDropdown(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   const formatNumber = (num: number) => {
     return new Intl.NumberFormat('id-ID').format(num);
@@ -233,7 +219,7 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
             `📎 Lihat struk lengkap: ${imageUrl}\n\n` +
             `Terima kasih telah menggunakan JASA HRY! 🙏`;
           
-          // Try Web Share API first (gives user choice of apps)
+          // Try Web Share API first (gives user choice of apps including WA Personal/Business)
           if (navigator.share && navigator.canShare && navigator.canShare({ text: message })) {
             try {
               await navigator.share({
@@ -243,36 +229,17 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
               console.log('✅ Shared via Web Share API');
               return;
             } catch (shareError) {
-              if (shareError.name !== 'AbortError') {
-                console.log('📱 Web Share failed, fallback to WhatsApp URL');
-              } else {
+              if (shareError.name === 'AbortError') {
                 console.log('📱 Web Share cancelled by user');
-                return; // User cancelled, don't open WhatsApp
+                return; // User cancelled, don't fallback
               }
+              console.log('📱 Web Share failed, fallback to WhatsApp URL');
             }
           }
 
-          // Show choice dialog for multiple WhatsApp apps
-          const userChoice = confirm(
-            '📱 Pilih cara share:\n\n' +
-            '✅ OK = Buka WhatsApp langsung\n' +
-            '❌ Cancel = Copy link untuk share manual'
-          );
-
-          if (userChoice) {
-            // Open WhatsApp (will use system default)
-            const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
-            window.open(whatsappUrl, '_blank');
-          } else {
-            // Copy to clipboard for manual sharing
-            try {
-              await navigator.clipboard.writeText(message);
-              alert('📋 Pesan berhasil dicopy ke clipboard!\n\nSekarang buka WhatsApp yang diinginkan dan paste pesan.');
-            } catch (clipboardError) {
-              // Fallback: show message in alert for manual copy
-              alert('📝 Copy pesan ini ke WhatsApp:\n\n' + message);
-            }
-          }
+          // Fallback: Open WhatsApp directly (for older browsers)
+          const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+          window.open(whatsappUrl, '_blank');
           
           console.log('✅ WhatsApp share completed!');
           alert('✅ Struk berhasil diupload! WhatsApp terbuka dengan link struk.');
@@ -295,35 +262,7 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
     }
   };
 
-  const handleCopyMessage = async () => {
-    try {
-      // Auto-save mapping sebelum copy
-      if (transferData.receiverName && transferData.receiverAccount) {
-        const saved = autoSaveAccountMapping(transferData.receiverName, transferData.receiverAccount);
-        if (saved) {
-          showAutoSaveNotification(transferData.receiverName, transferData.receiverAccount);
-        }
-      }
 
-      // Create message without image URL (for manual sharing)
-      const message = `📄 *BUKTI TRANSFER - JASA HRY*\n\n` +
-        `✅ Transfer berhasil!\n` +
-        `💰 Jumlah: Rp ${formatNumber(transferData.amount)}\n` +
-        `👤 Dari: ${transferData.senderName}\n` +
-        `👤 Ke: ${transferData.receiverName}\n` +
-        `🏦 Bank: ${transferData.receiverBank}\n` +
-        `📅 Tanggal: ${transferData.date}\n\n` +
-        `Terima kasih telah menggunakan JASA HRY! 🙏`;
-
-      await navigator.clipboard.writeText(message);
-      alert('📋 Pesan berhasil dicopy!\n\nSekarang buka WhatsApp yang diinginkan dan paste pesan.');
-      setShowShareDropdown(false);
-
-    } catch (error) {
-      console.error('❌ Copy failed:', error);
-      alert('❌ Gagal copy pesan. Coba lagi.');
-    }
-  };
 
   const receiptWidth = transferData.paperSize === '58mm' ? 'w-48' : 'w-64';
 
@@ -351,51 +290,14 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
           <Download className="w-5 h-5 mr-2" />
           Simpan PDF
         </button>
-        {/* Share Button with Dropdown */}
-        <div className="relative" ref={dropdownRef}>
-          <div className="flex">
-            <button
-              onClick={handleShareWhatsApp}
-              data-share-button
-              className="flex items-center px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-l-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Share2 className="w-5 h-5 mr-2" />
-              Share WhatsApp
-            </button>
-            <button
-              onClick={() => setShowShareDropdown(!showShareDropdown)}
-              className="px-2 py-3 bg-green-500 hover:bg-green-600 text-white rounded-r-lg border-l border-green-400 transition-colors"
-            >
-              <ChevronDown className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Dropdown Menu */}
-          {showShareDropdown && (
-            <div className="absolute top-full mt-1 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-48">
-              <button
-                onClick={handleShareWhatsApp}
-                className="flex items-center w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50 rounded-t-lg"
-              >
-                <MessageCircle className="w-4 h-4 mr-3 text-green-500" />
-                <div>
-                  <div className="font-medium">Share dengan Gambar</div>
-                  <div className="text-xs text-gray-500">Buka WhatsApp default</div>
-                </div>
-              </button>
-              <button
-                onClick={handleCopyMessage}
-                className="flex items-center w-full px-4 py-3 text-left text-gray-700 hover:bg-gray-50 rounded-b-lg border-t border-gray-100"
-              >
-                <Copy className="w-4 h-4 mr-3 text-blue-500" />
-                <div>
-                  <div className="font-medium">Copy Pesan</div>
-                  <div className="text-xs text-gray-500">Pilih WhatsApp manual</div>
-                </div>
-              </button>
-            </div>
-          )}
-        </div>
+        <button
+          onClick={handleShareWhatsApp}
+          data-share-button
+          className="flex items-center px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Share2 className="w-5 h-5 mr-2" />
+          Share WhatsApp
+        </button>
       </div>
 
       <div className="flex justify-center">
