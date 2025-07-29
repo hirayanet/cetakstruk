@@ -1,0 +1,28 @@
+{
+  "name": "cetakresi-ocr-api",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "dev": "ts-node index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
+    "express": "^4.18.2",
+    "get-stream": "^9.0.1",
+    "multer": "^1.4.5-lts.1",
+    "pdfkit": "^0.17.1"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/get-stream": "^3.0.1",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^24.1.0",
+    "@types/pdfkit": "^0.17.2",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.0.4"
+  }
+}
