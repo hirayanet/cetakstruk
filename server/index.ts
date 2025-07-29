@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import ocrApi from './ocr-api';
-const pdfHtmlApi = require('./pdf-html-api');
+import pdfHtmlApi from './src/pdf-html-api';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
