@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import CropPreview from './components/CropPreview';
 import { Upload, FileImage, Printer, Download, Calculator, CheckCircle, LogOut, Home } from 'lucide-react';
 import ImageUploader from './components/ImageUploader';
 import TransferForm from './components/TransferForm';
@@ -11,6 +12,23 @@ import { extractDataFromImage } from './utils/ocrSimulator';
 import { saveAuthData, loadAuthData, clearAuthData, saveAppState, loadAppState, clearAppState } from './utils/auth';
 
 function App() {
+  // State untuk toggle crop preview
+  const [showCropPreview, setShowCropPreview] = useState(false);
+
+  // Helper crop area dummy (contoh masking DANA, bisa dikembangkan sesuai kebutuhan)
+  function getCropAreasForPreview(selectedBank: BankType) {
+    // Area crop DANA (contoh, sesuaikan dengan logic dynamic crop di realOCR jika ingin presisi)
+    if (selectedBank === 'SEABANK' || selectedBank === 'DANA') {
+      return [
+        { x: 0, y: 0.28, width: 1, height: 0.30 }, // crop utama
+        { x: 0, y: 0.20, width: 1, height: 0.40 }, // crop varian tinggi
+        { x: 0, y: 0.32, width: 1, height: 0.25 }, // crop varian lain
+      ];
+    }
+    // Bank lain: kosong
+    return [];
+  }
+
   // Authentication state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -352,6 +370,26 @@ function App() {
 
         {step === 'upload' && (
           <div className="space-y-6">
+            {/* Toggle Crop Preview */}
+            {uploadedImage && (
+              <div className="mb-2 flex items-center gap-3">
+                <label className="flex items-center cursor-pointer select-none text-sm font-medium text-gray-700">
+                  <input type="checkbox" checked={showCropPreview} onChange={() => setShowCropPreview(v => !v)} className="mr-2" />
+                  Tampilkan Preview Area Crop OCR (debug)
+                </label>
+              </div>
+            )}
+            {/* Crop Preview */}
+            {uploadedImage && showCropPreview && (
+              <div className="mb-4">
+                <CropPreview
+                  imageUrl={uploadedImage}
+                  cropAreas={getCropAreasForPreview(selectedBank)}
+                  style={{ maxWidth: 340, border: '1px solid #ddd', background: '#fff' }}
+                />
+                <div className="text-xs text-gray-500 mt-1">Area crop di bawah ini hanya contoh (masking DANA). Area sebenarnya mengikuti logika dynamic crop di backend OCR.</div>
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">Upload Resi {selectedBank}</h2>

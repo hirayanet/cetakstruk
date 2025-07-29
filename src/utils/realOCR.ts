@@ -493,6 +493,29 @@ function parseSeabankReceipt(text: string, bankType: BankType, paperSize: '58mm'
     hasDanaLower: text.toLowerCase().includes('dana'),
     regexMatch: /\b(dnid|dana)\b/i.test(text)
   });
+
+  // PATCH KHUSUS: Fallback parsing nomor HP DANA jika transfer Seabank ke DANA dan masking/crop gagal
+  // Akan diaktifkan setelah seluruh proses masking/crop selesai, sebelum return TransferData
+  function fallbackFindDanaAccountIfNeeded(receiverAccount: string, text: string, isDanaTransfer: boolean): string {
+    if (!isDanaTransfer) return receiverAccount;
+    if (receiverAccount && receiverAccount.match(/^08\d{7,12}$/)) return receiverAccount;
+    // Cari nomor HP DANA di seluruh hasil OCR
+    const hpMatch = text.match(/08\d{7,12}/);
+    if (hpMatch) {
+      console.log('💙 [PATCH] DANA Detected from fallback OCR:', hpMatch[0]);
+      return hpMatch[0];
+    }
+    // Cari juga pola dengan spasi/tanda baca (misal: 0813-xxxx-xxxx atau 0813 xxxx xxxx)
+    const hpLooseMatch = text.match(/08[\d\s\-]{7,15}/);
+    if (hpLooseMatch) {
+      const cleaned = hpLooseMatch[0].replace(/\D/g, '');
+      if (cleaned.length >= 10 && cleaned.length <= 13) {
+        console.log('💙 [PATCH] DANA Detected from fallback OCR (loose):', cleaned);
+        return cleaned;
+      }
+    }
+    return receiverAccount;
+  }
   
   // Helper function untuk membersihkan nama dan koreksi OCR
   const cleanName = (name: string): string => {
@@ -741,19 +764,6 @@ function parseSeabankReceipt(text: string, bankType: BankType, paperSize: '58mm'
           if (digitPattern) {
             let lastDigits = digitPattern[1];
 
-            // Terapkan koreksi OCR
-            const ocrCorrections: { [key: string]: string } = {
-              '531': '2531', '504': '8504', '532': '8532', '503': '8503', '501': '8501', '502': '8502'
-            };
-
-            if (ocrCorrections[lastDigits]) {
-              lastDigits = ocrCorrections[lastDigits];
-              console.log(`🔧 FALLBACK BRI Correction: ${digitPattern[1]} → ${lastDigits}`);
-            }
-
-            receiverAccount = '*'.repeat(11) + lastDigits;
-            receiverBank = 'BRI';
-            console.log('🎯 FALLBACK BRI Account from digits:', { line, account: receiverAccount });
             break;
           }
         }
@@ -1499,10 +1509,53 @@ export async function extractDataWithRealOCR(imageUrl: string, bankType: BankTyp
           const { cropImageAreaToBlob } = await import('./cropImageArea');
           
           // Crop area khusus untuk masking DANA (y: 0.35, height: 0.18)
+          // --- STRATEGI BARU: Cari nomor HP DANA langsung di seluruh hasil OCR global (tanpa crop) ---
+          let hpDanaFromRaw = '';
+          // Pola: 08xxxxxxxxxx (7-13 digit, boleh spasi/tanda baca di antaranya)
+          const hpRawMatch = text.match(/08[\d\s\-]{7,15}/);
+          if (hpRawMatch) {
+            const cleaned = hpRawMatch[0].replace(/\D/g, '');
+            if (cleaned.length >= 10 && cleaned.length <= 13) {
+              hpDanaFromRaw = cleaned;
+              console.log('💙 [DANA][RAW OCR] Nomor HP DANA ditemukan di global OCR:', cleaned);
+            }
+          }
+          // Jika sudah ketemu, skip crop masking DANA
+          if (hpDanaFromRaw) {
+            // inject ke hasil parsing nanti sebagai receiverAccount
+            // (patch: di bawah, setelah parsing, cek jika isDanaTransfer dan hpDanaFromRaw, pakai ini)
+          }
+          // --- TUNING: Dynamic crop berdasarkan posisi baris 'DANA', 'DNID', atau 'Ke' ---
+          let dynamicCropVariants = [] as {x:number,y:number,width:number,height:number}[];
+          const ocrLines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+          let foundIdx = -1;
+          for (let i = 0; i < ocrLines.length; i++) {
+            const l = ocrLines[i].toUpperCase();
+            if (l.includes('DANA') || l.includes('DNID') || l.startsWith('KE ')) {
+              foundIdx = i;
+              break;
+            }
+          }
+          if (foundIdx !== -1) {
+            // Ambil 2 baris atas, 3 baris bawah dari baris ditemukan
+            const totalLines = ocrLines.length;
+            const startLine = Math.max(0, foundIdx - 2);
+            const endLine = Math.min(totalLines-1, foundIdx + 3);
+            // Asumsi posisi Y per baris: bagi rata tinggi gambar
+            const barisTinggi = 1 / totalLines;
+            const y = startLine * barisTinggi;
+            const height = (endLine - startLine + 1) * barisTinggi;
+            dynamicCropVariants.push({ x: 0, y, width: 1, height });
+            console.log('[DANA][CROP][DYNAMIC] Dynamic crop:', { y, height, startLine, endLine, totalLines });
+          }
+          // Gabungkan dynamic + fallback lama
           const cropVariants = [
-            { x: 0, y: 0.32, width: 1, height: 0.25 }, // area lebih besar, pastikan baris 'Dana:' masuk
-            { x: 0, y: 0.28, width: 1, height: 0.30 }, // backup area lebih tinggi
-            { x: 0, y: 0.36, width: 1, height: 0.28 }  // backup lain
+            ...dynamicCropVariants,
+            { x: 0, y: 0.32, width: 1, height: 0.25 },
+            { x: 0, y: 0.28, width: 1, height: 0.30 },
+            { x: 0, y: 0.36, width: 1, height: 0.28 },
+            { x: 0, y: 0.25, width: 1, height: 0.35 },
+            { x: 0, y: 0.20, width: 1, height: 0.40 }
           ];
           let danaText = '';
           let maskingDanaCropBase64 = '';
