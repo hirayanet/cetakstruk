@@ -11,11 +11,10 @@ const AccountMappingManager: React.FC = () => {
   const [isVisible, setIsVisible] = useState(false);
 
   // Load existing mappings
-  useEffect(() => {
-    // Load dari localStorage
+  // Selalu sync mapping dengan localStorage, baik saat mount, storage event, maupun modal dibuka
+  const loadMappings = () => {
     const savedMappings = localStorage.getItem('accountMappings');
     console.log('🔍 DEBUG: Raw localStorage data:', savedMappings);
-
     if (savedMappings) {
       try {
         const parsed = JSON.parse(savedMappings);
@@ -26,9 +25,27 @@ const AccountMappingManager: React.FC = () => {
         console.error('❌ Failed to load mappings:', error);
       }
     } else {
+      setMappings({});
       console.log('⚠️ DEBUG: No mappings found in localStorage');
     }
+  };
+
+  useEffect(() => {
+    loadMappings();
+    // Listen storage event (sync antar tab)
+    const handler = (e: StorageEvent) => {
+      if (e.key === 'accountMappings') {
+        loadMappings();
+      }
+    };
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
   }, []);
+
+  // Reload mapping setiap kali modal dibuka
+  useEffect(() => {
+    if (isVisible) loadMappings();
+  }, [isVisible]);
 
   // Save mappings to localStorage
   const saveMappings = (newMappings: AccountMapping) => {
@@ -49,8 +66,41 @@ const AccountMappingManager: React.FC = () => {
     // Validasi format nomor rekening (boleh masking atau full digit)
     const isMasked = /^\*{8,}\d{3,4}$/.test(accountFormatted);
     const isFullDigit = /^\d{8,20}$/.test(accountFormatted.replace(/\s/g, ''));
+    // Placeholder patterns (semua bank, masking, dummy, generic)
+    const placeholderPatterns = [
+      /^0{8,}$/,
+      /^9{8,}$/,
+      /^1{8,}$/,
+      /^1234567\d+$/, // 12345678, 1234567890 dst
+      /^\*+$/, // Semua bintang
+      /^X+$/, // Semua X
+      /^08XX\*{5,}XXX$/i, // Masking DANA
+      /^08\d{2}\*{5,}\d{3}$/,
+      /^0813\*{5,}\d{3}$/,
+      /^\*{8,}\d{3,4}$/,
+      /^\d{8,20}$/,
+      /^\*+\d*$/, // bintang diikuti digit
+    ];
+    const isPlaceholder = (
+      placeholderPatterns.some(re => re.test(accountFormatted)) ||
+      [
+        '08XX*****XXX',
+        '***********',
+        '***********XXX',
+        '0000000000',
+        '9999999999',
+        '1234567890',
+        'XXXXXXXXXXX',
+        'X'.repeat(accountFormatted.length),
+        '*'.repeat(accountFormatted.length)
+      ].includes(accountFormatted.toUpperCase())
+    );
     if (!isMasked && !isFullDigit) {
       alert('Format nomor rekening harus: ***********xxxx (atau 8-20 digit angka)');
+      return;
+    }
+    if (isPlaceholder) {
+      alert('Nomor rekening/masking yang Anda masukkan terdeteksi sebagai placeholder/dummy. Harap masukkan nomor rekening asli atau masking valid, bukan placeholder!');
       return;
     }
 

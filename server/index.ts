@@ -2,7 +2,9 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import ocrApi from './ocr-api';
-import pdfHtmlApi from './src/pdf-html-api';
+// @ts-ignore
+const ocrVisionApi = require('./ocrVisionApi');
+
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -12,7 +14,8 @@ app.use(express.json());
 
 // Register OCR API
 app.use('/api', ocrApi);
-app.use('/api', pdfHtmlApi);
+app.use('/api', ocrVisionApi);
+
 
 app.get('/', (req: express.Request, res: express.Response) => {
   res.send('OCR API server is running!');

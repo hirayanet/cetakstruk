@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calculator, CreditCard, Calendar, User, Hash } from 'lucide-react';
+import { Calculator, CreditCard, Calendar, User, Hash, AlertTriangle } from 'lucide-react';
 import { TransferData } from '../types/TransferData';
 
 interface TransferFormProps {
@@ -17,6 +17,7 @@ export default function TransferForm({ initialData, uploadedImage, onSubmit }: T
   });
   const [mappingNotice, setMappingNotice] = useState('');
   const [detectionInfo, setDetectionInfo] = useState<string>('');
+
 
   const adminFeeOptions = [
     { value: 0, label: 'Rp 0' },
@@ -49,23 +50,54 @@ export default function TransferForm({ initialData, uploadedImage, onSubmit }: T
     console.log('[DEBUG][EFFECT] formData.receiverAccount:', formData.receiverAccount);
   }, [formData.receiverAccount]);
   // Selalu update receiverAccount jika initialData.receiverAccount berubah
+  // Auto-load mapping jika receiverName berubah atau initialData berubah
   useEffect(() => {
-    setFormData(prev => ({
-      ...prev,
-      receiverAccount: initialData.receiverAccount || ''
-    }));
-  }, [initialData.receiverAccount]);
+    const name = (formData.receiverName || initialData.receiverName || '').toUpperCase();
+    let mappedAccount = '';
+    let foundMapping = false;
+    try {
+      const mappings = JSON.parse(localStorage.getItem('accountMappings') || '{}');
+      if (name && mappings[name]) {
+        mappedAccount = mappings[name];
+        foundMapping = true;
+      }
+    } catch {}
+    // Prioritaskan mapping jika ada, JANGAN override dengan default/fallback
+    setFormData(prev => {
+      const newAccount = foundMapping ? mappedAccount : (initialData.receiverAccount || prev.receiverAccount || '');
+      if (foundMapping) {
+        console.log('[MAPPING][AUTOLOAD] receiverAccount diisi dari mapping:', name, '→', mappedAccount);
+      } else {
+        console.log('[MAPPING][AUTOLOAD] mapping tidak ditemukan, pakai default/fallback:', newAccount);
+      }
+      return {
+        ...prev,
+        receiverAccount: newAccount
+      };
+    });
+  }, [formData.receiverName, initialData.receiverName, initialData.receiverAccount]);
 
+  // Jangan override receiverAccount jika sudah diisi dari mapping
   useEffect(() => {
-    setFormData({ ...initialData,
-      receiverAccount: initialData.receiverAccount || '',
-      senderName: initialData.bankType === 'BCA' ? 'GANI MUHAMMAD RMADLAN' : initialData.senderName
+    setFormData(prev => {
+      // Jika sudah ada receiverAccount hasil mapping dan bukan default/fallback, jangan override
+      const isMapped = prev.receiverAccount && !/^08XX\*\*\*\*\*XXX$/.test(prev.receiverAccount) && prev.receiverAccount !== '';
+      if (isMapped) {
+        console.log('[MAPPING][NO OVERRIDE] receiverAccount sudah hasil mapping, tidak di-override:', prev.receiverAccount);
+        return prev;
+      }
+      return {
+        ...initialData,
+        receiverAccount: initialData.receiverAccount || '',
+        senderName: initialData.bankType === 'BCA' ? 'GANI MUHAMMAD RMADLAN' : initialData.senderName
+      };
     });
     setMappingNotice('');
   }, [initialData]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
       {/* Mapping notice */}
       {mappingNotice && (
         <div className="mb-2 text-green-600 text-sm font-medium">

@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { Upload, FileImage, Camera } from 'lucide-react';
 import { BankType } from '../types/TransferData';
+import { compressImage } from '../utils/imageCompress';
 
 interface ImageUploaderProps {
   onImageUpload: (imageUrl: string) => void;
@@ -40,24 +41,38 @@ export default function ImageUploader({ onImageUpload, selectedBank }: ImageUplo
     }
   }, []);
 
-  const processImage = (file: File) => {
+  const processImage = async (file: File) => {
     setIsProcessing(true);
-
+    const t0 = performance.now();
+    let fileToUse = file;
+    let compressed = false;
+    // Hanya compress jika file > 1MB atau resolusi besar
+    if (file.size > 1_000_000) {
+      try {
+        const blob = await compressImage(file, { maxWidth: 1024, maxHeight: 1024, quality: 0.8 });
+        console.log('[COMPRESS] Asli:', file.size/1024, 'KB → Hasil:', blob.size/1024, 'KB');
+        fileToUse = new File([blob], file.name, { type: blob.type });
+        compressed = true;
+      } catch (e) {
+        console.warn('[COMPRESS] Gagal compress, pakai file asli', e);
+      }
+    }
     const reader = new FileReader();
     reader.onload = async (e) => {
       const imageUrl = e.target?.result as string;
-
+      const t1 = performance.now();
       console.log('📤 Image processed, calling onImageUpload...');
-
+      if (compressed) {
+        console.log(`[COMPRESS][PROFILING] Waktu compress + encode: ${(t1-t0).toFixed(1)}ms`);
+      }
       // Small delay to show upload processing
       await new Promise(resolve => setTimeout(resolve, 800));
-
-      // Langsung panggil onImageUpload, biar OCR jalan di background
       setIsProcessing(false);
       onImageUpload(imageUrl);
     };
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(fileToUse);
   };
+
 
   if (isProcessing) {
     return (

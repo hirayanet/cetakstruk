@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Printer, Download, CheckCircle, Share2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Printer, Download, CheckCircle, Share2, AlertTriangle } from 'lucide-react';
 import { TransferData } from '../types/TransferData';
 import { uploadReceiptToCloudinary, generateFileName } from '../utils/cloudinaryUpload';
 import { autoSaveAccountMapping } from '../utils/realOCR';
@@ -266,6 +266,15 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
 
   const receiptWidth = transferData.paperSize === '58mm' ? 'w-48' : 'w-64';
 
+  const [showWarning, setShowWarning] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowWarning(false);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <div className="space-y-6">
       {/* Auto-save notification */}
@@ -274,6 +283,8 @@ export default function ReceiptPreview({ transferData }: ReceiptPreviewProps) {
           {autoSaveMessage}
         </div>
       )}
+
+
 
       <div className="flex flex-wrap gap-4 justify-center">
         <button
